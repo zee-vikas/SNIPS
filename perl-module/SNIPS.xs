@@ -48,10 +48,14 @@ _startup(myname,...)
   CODE:
   {
 	prognm = (char *)Strdup(myname);	/* global var in snips.h */
-	if (items > 1) {  /* 0 is myname, 1 is extnm */
-	  s = (char *)SvPV(ST(1), PL_na);
-	  if (extnm)  free(extnm);
-	  extnm = (char *)Strdup(s);
+	if ( items > 1 ) {  /* 0 is myname, 1 is extnm */
+	  if (extnm) free(extnm);
+	  if ( SvOK(ST(1))) {
+		s = (char *)SvPV(ST(1), PL_na);
+		extnm = (char *)Strdup(s);
+	  }
+	  else
+		extnm = NULL;
 	}
 	RETVAL = snips_startup();
   }
@@ -274,9 +278,41 @@ calc_status(val, warnt, errt, critt)
 				&thres, &maxseverity);
 	EXTEND(sp, 3);
 	PUSHs(sv_2mortal(newSViv(status)));	/* integer */
-	PUSHs(sv_2mortal(newSVnv(thres)));	/* use double for long */
+	PUSHs(sv_2mortal(newSVnv(thres)));
 	PUSHs(sv_2mortal(newSViv(maxseverity)));
   }
+
+
+## Given a severity string, return an integer.
+int
+str2severity(str)
+	char *str;
+  PREINIT:
+	int sev;
+  CODE:
+	if (str)
+	  switch (*str)
+	  {
+		case 'C': case 'c':
+			RETVAL = E_CRITICAL;
+			break;
+		case 'E': case 'e':
+			RETVAL = E_ERROR;
+			break;
+		case 'W': case 'w':
+			RETVAL = E_WARNING;
+			break;
+		case 'I': case 'i':
+			RETVAL = E_INFO;
+			break;
+		default:
+			RETVAL = E_CRITICAL;
+			break;
+	  }
+	else
+	  RETVAL = E_CRITICAL;
+  OUTPUT:
+	RETVAL
 
 
 # Read one event from the open filehandle. Will need to unpack this
@@ -481,61 +517,63 @@ close_datafile(fd)
 
 MODULE = SNIPS		PACKAGE = SNIPS::globals 	PREFIX = snips_
 
-## This SETS the global variables
-SV *
-_STORE(ref, value)
-	SV *ref;
+## This SETS the global C variables (called by the TIE functions)
+void *
+_STORE(var, value)
+	char *var;
 	SV *value;
   PREINIT:
-	char *var;
+	char *s;
   CODE:
   {
-	if (!SvROK(ref))	/* not a reference */
-		XSRETURN_UNDEF ;
-
-	var = SvPV(SvRV(ref), PL_na);	/* extract what we want to store */
-	/* fprintf(stderr, "debug: trying to SET global '%s'\n", var); /* */
+	fprintf(stderr, "debug: trying to SET global '%s'\n", var); /* */
 
 	if      (!strcmp(var, "debug"))      debug = SvIV(value);
 	else if (!strcmp(var, "do_reload"))  do_reload = SvIV(value);
+	else if (!strcmp(var, "doreload"))  do_reload = SvIV(value);
 	else if (!strcmp(var, "autoreload")) autoreload = SvIV(value);
 	else if (!strcmp(var, "dorrd"))      dorrd = SvIV(value);
-	else if (!strcmp(var, "configfile")) set_configfile(SvPV(value, PL_na));
-	else if (!strcmp(var, "datafile"))   set_datafile(SvPV(value, PL_na));
+	else if (!strcmp(var, "configfile")) {
+		s = SvPV(value, PL_na);
+		set_configfile(s);
+	}
+	else if (!strcmp(var, "datafile"))   {
+		s = SvPV(value, PL_na);
+		set_datafile(s);
+	}
 	else {
 	  if (debug)
 	    fprintf(stderr, "Error: trying to set unknown global '%s'\n", var);
 	  XSRETURN_UNDEF ;
 	}
 
-	RETVAL = value;		/* return what we were sent */
+	/* RETVAL = value;		/* return what we were sent? */
   }
-  OUTPUT:
-	RETVAL
 
-# Fetch the value of a tied variable
+
+# Fetch the C value of the variable name passed to this function
 SV *
-_FETCH(ref)
-	SV *ref;
-  PREINIT:
+_FETCH(var)
 	char *var;
+  PREINIT:
+	char *s;
   CODE:
   {
-	if (!SvROK(ref))	/* not a reference */
-		XSRETURN_UNDEF ;
-
-	/* ref is a double reference */
-	var = SvPV(SvRV(ref), PL_na);	/* extract what we want to fetch */
-	/* fprintf(stderr, "debug: trying to GET global '%s'\n", var); /* */
+	fprintf(stderr, "debug: trying to GET global '%s'\n", var); /* */
 
 	if 	(!strcmp(var, "debug"))	   RETVAL = newSViv(debug);
 	else if (!strcmp(var, "do_reload"))  RETVAL = newSViv(do_reload);
+	else if (!strcmp(var, "doreload"))  RETVAL = newSViv(do_reload);
 	else if (!strcmp(var, "autoreload")) RETVAL = newSViv(autoreload);
 	else if (!strcmp(var, "dorrd"))	   RETVAL = newSViv(dorrd);
-	else if (!strcmp(var, "configfile"))
-		RETVAL = newSVpv(get_configfile(), 0);
-	else if (!strcmp(var, "datafile"))
-		RETVAL = newSVpv(get_datafile(), 0);
+	else if (!strcmp(var, "configfile")) {
+		s = get_configfile();
+		RETVAL = newSVpv(s, 0);
+	}
+	else if (!strcmp(var, "datafile")) {
+		s = get_datafile();
+		RETVAL = newSVpv(s, 0);
+	}
 	else {
 	  if (debug)
 	    fprintf(stderr,
