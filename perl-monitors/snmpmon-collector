@@ -31,14 +31,19 @@
 ###
 # VARIABLES USED:
 #
-#	@devicelist	list of devices to monitor
-#	@vars{$type}	list of SNMP variables for each type
-#	@devvar{$device}	list of variables to monitor for each device
-#	@devvarval{$dev, $var}
-#			matrix of values of each device & variable.
-#			Each point in this matrix is a string (list) that
-#			stores the data for all interfaces for the device.
+# Each device belongs to one or more 'types' (where the types are defined
+# in @devicetypes such as router, host, rmon). The list of variables to
+# monitor are preset for each 'type', and any custom data parsing is done
+# for each 'type'.
 #
+#	@devicelist		list of devices to monitor
+#	%typevars{$type}	list of SNMP variables for each TYPE
+#	%devvars{$device}	list of SNMP variables for each DEVICE
+#	%nvarval{$var}		current values for device being monitored
+#	%prev_varval{$dev, $var}	previous monitored values for a device
+#				and corresponding variable.
+#				Each point in this matrix is a string
+#				of values.
 #
 # Customization:
 #
@@ -51,9 +56,10 @@ use vars qw ( $snipsroot $etcdir $bindir $snmpget $snmpwalk $mibfile
 	      $debug $ping $prognm $sleeptime $TMPDATADIR $cfile $tfile
 	      $testtime $ostype
 	      $MIB2 $MIBENTERPRISE $MIBRMON $MIBCISCO $MIBCTRON
+	      $MIBEMPIRE $MIBHOSTRESOURCES
 	      @devicetypes @devices 
-	      %vars %prevtime %nvarval %devvar_val %devvar %cid 
-	      %istype %isdevtypes
+	      %typevars %prevtime %nvarval %prev_varval %devvars %cid 
+	      %istype %isdevtypes %mibalias
 	    );
 
 BEGIN {
@@ -95,10 +101,23 @@ $cfile = "$etcdir/snmpmon-confg" ;
 -x $snmpwalk || die("Could not find executable $snmpwalk, exiting");
 if ($ping =~ m|^/|) {-x $ping || die("Cannot find $ping, exiting"); }
 
-## list of known devices
-@devicetypes = ("system", "rmon", "router", "cisco_router", "cisco_ts") ;
+## list of known devices. There has to be a corresponding function
+#  for each of these routines (called init_$devname).
+@devicetypes = qw(system rmon router cisco_router cisco_ts
+		  host
+		 ) ;
+%mibalias = (
+	     'system', 'SYSTEM',
+	     'rmon', 'RMON',
+	     'router', 'RTR',
+	     'cisco_router', 'CISCO',
+	     'cisco_ts', 'CISCO',
+	     'empire_unix', 'EMPIRE',
+	     'host', 'HOST'
+	    );
 
-$MIB2 = ".iso.org.dod.internet.mgmt.mib-2" ; 
+#####  MIB aliases
+$MIB2 = ".iso.org.dod.internet.mgmt.mib-2" ;
 #$MIB2 = ".1.3.6.1.2.1" ;
 $MIBENTERPRISE = ".iso.org.dod.internet.private.enterprises" ;
 #$MIBENTERPRISE = ".1.3.6.1.4.1"
@@ -107,6 +126,11 @@ $MIBRMON = "$MIB2.rmon" ;
 $MIBCISCO = "$MIBENTERPRISE.Cisco" ;	# or .9
 $MIBCTRON = "$MIBENTERPRISE.cabletron" ;
 
+## Empire mib for systems (see http://www.empire.com)
+$MIBEMPIRE = "$MIBENTERPRISE.546";
+
+$MIBHOSTRESOURCES = "$MIB2.25";	# RFC 1514 (Host Resources)
+
 #####  init_$type  routines
 sub init_system {
   my $idx = "system" ;
@@ -114,7 +138,7 @@ sub init_system {
   my @lvars = qw(sysDescr sysUpTime);
   
   $debug && print STDERR "(debug) Running init_system\n";
-  foreach my $i (@lvars) { $vars{$idx} .= "$prefix.$i " };
+  foreach my $i (@lvars) { $typevars{$idx} .= "$prefix.$i " };
   
 }				# end init_system()
 
@@ -127,7 +151,7 @@ sub init_rmon {
 	       etherStatsCollisions) ;
   
   $debug && print STDERR "(debug) Running init_rmon\n";
-  foreach my $i (@lvars) { $vars{$idx} .= "$prefix.$i " };
+  foreach my $i (@lvars) { $typevars{$idx} .= "$prefix.$i " };
   
 }				# end init_rmon()
 
@@ -140,7 +164,7 @@ sub init_router {
 	       ifInErrors ifOutErrors);
   
   $debug && print STDERR "(debug) Running init_router\n";
-  foreach my $i (@lvars) { $vars{$idx} .= "$prefix.$i " };
+  foreach my $i (@lvars) { $typevars{$idx} .= "$prefix.$i " };
 }
 
 sub init_cisco_router {
@@ -150,7 +174,7 @@ sub init_cisco_router {
 	       locIfInCRC locIfInRunts locIfResets locIfReliab);
   
   $debug && print STDERR "(debug) Running init_cisco_router\n";
-  foreach my $i (@lvars) { $vars{$idx} .= "$prefix.$i " };
+  foreach my $i (@lvars) { $typevars{$idx} .= "$prefix.$i " };
 }
 
 sub init_cisco_ts {
@@ -159,8 +183,32 @@ sub init_cisco_ts {
   my @lvars = qw(tsLineActive tsLineType);
   
   $debug && print STDERR "(debug) Running init_cisco_ts\n";
-  foreach my $i (@lvars) { $vars{$idx} .= "$prefix.$i " };
+  foreach my $i (@lvars) { $typevars{$idx} .= "$prefix.$i " };
 }
+
+# RFC 1514
+sub init_host {
+  my $idx = "host";
+  my $prefix = "$MIBHOSTRESOURCES";
+  # .1.1 = hrSystemUptime    .1.6 = hrSystemProcesses  .1.7 = hrMaxProcesses
+  # .2.3.1.[3456] = info on memory, disk, etc.
+  # .3.3.1 = cpu number and %-busy over past 1 minute
+  my @lvars = qw(1.1 1.6 1.7 2.3.1.3 2.3.1.4 2.3.1.5 2.3.1.6 3.3.1);
+  
+  $debug && print STDERR "(debug) Running init_host\n";
+  foreach my $i (@lvars) { $typevars{$idx} .= "$prefix.$i " };
+}
+
+## Empire agent (www.empire.com)
+sub init_empire_unix {
+  my $idx = "empire_unix" ;
+  my $prefix = "$MIBEMPIRE.1";
+  my @lvars = qw();
+  
+  $debug && print STDERR "(debug) Running init_empire_unix\n";
+  foreach my $i (@lvars) { $typevars{$idx} .= "$prefix.$i " };
+}
+
 
 ############################################################################
 
@@ -178,10 +226,10 @@ sub procdata_system {
   
   $debug && 
     print STDERR "(debug) Running procdata_system for device $dev\n";
-  foreach my $var ( split(/[ ,\t\n]+/, $vars{"system"}) ) {
+  foreach my $var ( split(/[ ,\t\n]+/, $typevars{"system"}) ) {
     my $v = &toindex($var) ;
     my $varalias = ( $var =~ /^.*(\.[^.]+)$/ ) ;
-    $varalias = "SYS" . $varalias ;
+    $varalias = $mibalias{"system"} . $varalias ;
     if ($var =~ /sysUpTime/) {	#  (844388487) 97 days, 17:31:24
       my $upsecs = ( $nvarval{$v} =~ /^\s*\((\d+)\)\s*/ );
       # convert TICKS into secs
@@ -192,7 +240,7 @@ sub procdata_system {
 	print "$varalias $_ VALUE\n" ;
       }
     }
-    $devvar_val{$d, $v} = "$nvarval{$v}" ; # store new values
+    $prev_varval{$d, $v} = "$nvarval{$v}" ; # store new values
   }
 }
 
@@ -207,10 +255,10 @@ sub procdata_rmon {
   
   $debug &&
     print STDERR "(debug) Running procdata_rmon for device $dev\n";
-  foreach my $var ( split(/[ ,\t\n]+/, $vars{"rmon"}) ) {
+  foreach my $var ( split(/[ ,\t\n]+/, $typevars{"rmon"}) ) {
     my $v = &toindex($var) ;
     my ($size, $deltaval) =
-      &vector_calc($nvarval{$v} , "-" , $devvar_val{$d,$v} );
+      &vector_calc($nvarval{$v} , "-" , $prev_varval{$d,$v} );
     
     if ($size != 0)
     {
@@ -218,7 +266,7 @@ sub procdata_rmon {
       
       # shorten the prefix
       my $varalias = ( $var =~ /^.*(\.[^.]+)$/ ) ;
-      $varalias = "RMON" . $varalias ;
+      $varalias = $mibalias{rmon} . $varalias ;
       my $i = 0;
       foreach (split(/[\t\n]/, $deltarate)) {
 	++$i; 
@@ -237,7 +285,7 @@ sub procdata_rmon {
     }
     #	else { $debug && print STDERR "Varying array lengths, skipping ...\n" }
     
-    $devvar_val{$d, $v} = "$nvarval{$v}" ; # store new values
+    $prev_varval{$d, $v} = "$nvarval{$v}" ; # store new values
 
   }	# end:  foreach($var)
 }	# sub procdata_rmon()
@@ -254,7 +302,7 @@ sub procdata_router {
   
   $debug && 
     print STDERR "(debug) Running procdata_cisco_router for device $dev\n";
-  foreach my $var ( split(/[ ,\t\n]+/, $vars{"router"}) ) {
+  foreach my $var ( split(/[ ,\t\n]+/, $typevars{"router"}) ) {
     my $v = &toindex($var) ;
     
     # Print values for some variables, deltas for some...
@@ -263,7 +311,7 @@ sub procdata_router {
     elsif ($var =~ /ifOutQLen/) # need value, not rate
     {
       my $varalias = ( $var =~ /^.*(\.[^.]+)$/ ) ;
-      $varalias = "RTR" . $varalias ;
+      $varalias = $mibalias{router} . $varalias ;
       my $i = 0;
       foreach (split(/[\t\n]/, $nvarval{$v})) {
 	print "$varalias $_ VALUE $ifDescr[$i++]\n" ;
@@ -272,7 +320,7 @@ sub procdata_router {
     elsif ($var =~ /Octets|Pkts|Errors/) # extract rates
     {
       my ($size, $deltaval) =
-	&vector_calc($nvarval{$v} , "-" , $devvar_val{$d,$v} );
+	&vector_calc($nvarval{$v} , "-" , $prev_varval{$d,$v} );
       
       if ($size != 0)
       {
@@ -280,7 +328,7 @@ sub procdata_router {
 	
 	# shorten the prefix
 	my $varalias = ( $var =~ /^.*(\.[^.]+)$/ ) ;
-	$varalias = "RTR" . $varalias ;
+	$varalias = $mibalias{router} . $varalias ;
 	my $i = 0;
 	foreach (split(/[\t\n]/, $deltarate)) {
 	  print "$varalias $_ RATE-sec $ifDescr[$i++]\n" ;
@@ -298,7 +346,7 @@ sub procdata_router {
       }				# end if(size != 0)
     }
     
-    $devvar_val{$d, $v} = "$nvarval{$v}" ; # store new values
+    $prev_varval{$d, $v} = "$nvarval{$v}" ; # store new values
     
   }				# foreach $var
 }
@@ -315,13 +363,13 @@ sub procdata_cisco_router {
   
   $debug && 
     print STDERR "(debug) Running procdata_cisco_router for device $dev\n";
-  foreach my $var ( split(/[ ,\t\n]+/, $vars{"cisco_router"}) ) {
+  foreach my $var ( split(/[ ,\t\n]+/, $typevars{"cisco_router"}) ) {
     my $v = &toindex($var) ;
     
     if ($var =~ /IfReliab/)	# no deltas for interface reliability
     {
       my $varalias = ( $var =~ /^.*(\.[^.]+)$/ ) ;
-      $varalias = "CISCO" . $varalias ;
+      $varalias = $mibalias{cisco_router} . $varalias ;
       $i = 0;
       foreach (split(/[\t\n]/, $nvarval{$v})) {
 	++$i;
@@ -331,7 +379,7 @@ sub procdata_cisco_router {
     else			# extract rates
     {
       my ($size, $deltaval) =
-	&vector_calc($nvarval{$v} , "-" , $devvar_val{$d,$v} );
+	&vector_calc($nvarval{$v} , "-" , $prev_varval{$d,$v} );
       
       if ($size != 0)
       {
@@ -340,7 +388,7 @@ sub procdata_cisco_router {
 	
 	# shorten the prefix
 	my $varalias = ( $var =~ /^.*(\.[^.]+)$/ ) ;
-	$varalias = "CISCO" . $varalias ;
+	$varalias = $mibalias{cisco_router} . $varalias ;
 	$i = 0;
 	foreach (split(/[\t\n]/, $deltarate)) {
 	  ++$i;
@@ -349,9 +397,9 @@ sub procdata_cisco_router {
       }
     }
     
-    $devvar_val{$d, $v} = "$nvarval{$v}" ; # store new values
+    $prev_varval{$d, $v} = "$nvarval{$v}" ; # store new values
     
-  }				# foreach $var
+  }	# foreach $var
 }
 
 ##
@@ -371,7 +419,7 @@ sub procdata_cisco_ts {
   $debug && 
     print STDERR "(debug) Running procdata_cisco_ts for device $dev\n";
   
-  foreach my $i ( split(/[ ,\t\n]+/, $vars{"cisco_ts"}) ) {
+  foreach my $i ( split(/[ ,\t\n]+/, $typevars{"cisco_ts"}) ) {
     if ($i =~ /tsLineActive/) {
       @active = split(/[\t\n]+/, $nvarval{&toindex($i)} ); }
     if ($i =~ /tsLineType/)   {
@@ -398,9 +446,79 @@ sub procdata_cisco_ts {
   
   $debug && print STDERR "(debug)Active/Total terminals: $acount/$tcount\n";
   
-  print "CISCO.tsLineActive $acount VALUE\n";
+  print $mibalias{cisco_ts}, ".tsLineActive $acount VALUE\n";
   
 }				# end: procdata_cisco_ts
+
+sub procdata_host {
+  my ($dev) = @_ ;
+  my $d = &toindex($dev);
+  my $dtime = $testtime - $prevtime{$d};
+  my ($curproc, $maxproc) = (0, 0);
+  my (@storageDesc, @storageTotal, @storageUsed);
+
+  $debug && 
+    print STDERR "(debug) Running procdata_host for device $dev\n";
+  foreach my $var ( split(/[ ,\t\n]+/, $typevars{host}) ) {
+    my $v = &toindex($var) ;
+    if ($var eq "$MIBHOSTRESOURCES.1.1") {	# uptime
+      if ($nvarval{$v} =~ /\((\d+)\)/) {
+	my $uptime = int ($1 / 6000);	# convert msecs to minutes
+	print $mibalias{host}, ".uptime $uptime SECS\n";
+      }
+    }
+    elsif ($var eq "$MIBHOSTRESOURCES.1.6") {	# cur proc
+      $curproc = $nvarval{$v};
+    }
+    elsif ($var eq "$MIBHOSTRESOURCES.1.7") {	# max proc
+      $maxproc = $nvarval{$v};
+    }
+    elsif ($var eq "$MIBHOSTRESOURCES.3.3.1") {	# cpu load
+      my @vals = split /\s+/, $nvarval{$v};
+      my ($i, $cpu) = (0, 0);
+      for ($i = ($#vals + 1) / 2; $i <= $#vals; ++$i) {
+	++$cpu;
+	print $mibalias{host}, ".cpuidle ", 100 - $vals[$i], "  1min-% cpu$cpu\n";
+      }
+    }
+    elsif ($var eq "$MIBHOSTRESOURCES.2.3.1.3") {
+      @storageDesc = split /\t/, $nvarval{$v};
+    }
+    elsif ($var eq "$MIBHOSTRESOURCES.2.3.1.5") {
+      @storageTotal = split /\t/, $nvarval{$v};
+    }
+    elsif ($var eq "$MIBHOSTRESOURCES.2.3.1.6") {
+      @storageUsed = split /\t/, $nvarval{$v};
+    }
+    else {
+      $debug && print STDERR "UNKNOWN var $var, nvarval $nvarval{$v}\n";
+    }
+  }	# foreach
+  if ($maxproc =~ /\d+/ && $curproc =~ /\d+/ && $maxproc > 0 ) {
+    print $mibalias{host}, ".proctable_%free ",
+           100 - int($curproc * 100 / $maxproc), " VALUE\n";
+  }
+  foreach (@storageDesc) {
+    my $used = shift @storageUsed;
+    my $total = shift @storageTotal;
+    my $percentfree = 100 - int($used * 100 / $total);
+    if (/Physical RAM/i) {
+      s/Physical\s+RAM\s*//i;
+      print $mibalias{host}, ".phymem_%free $percentfree VALUE $_\n";
+    }
+    elsif (/Virtual Memory/i) {
+      s/Virtual\s+Memory\s*//i;
+      print $mibalias{host}, ".virtual_%free $percentfree VALUE $_\n";
+    }
+    elsif (/Disk partition/i) {
+      s/Disk\s+partition\s*//i;
+      print $mibalias{host}, ".diskspace_%free $percentfree VALUE $_\n";
+    }
+    else {
+      print $mibalias{host}, ".storage_%free $percentfree VALUE $_\n";
+    }
+  }
+}	# sub procdata_host()
 
 ############################################################################
 
@@ -408,13 +526,12 @@ sub procdata_cisco_ts {
 ### Utility routines
 ###
 
-## Strip hyphens, etc from a string suitable for an index for an
-#  array.
+## Strip periods, hyphens, etc from a string suitable for an array index.
+#  Replace them with '_'
 #
 sub toindex {
   my ($i) = @_ ;
-  $i  =~ s/[\.-]//g ;		# strip off all hyphens, dots, etc.
-  
+  $i  =~ s/[\.-]/_/g ;		# strip off all hyphens, dots, etc.
   return ($i);
 }
 
@@ -458,7 +575,7 @@ sub vector_calc {
 # Read lines of the form:
 #	<device> <cid> <type> <type> ...
 # Create a long string of variables to be monitored for each device and
-# store in @devvar{$device}
+# store in @devvars{$device}
 sub readconfig {
   my ($d, $typ, $v);
   my $startdevices = 0;
@@ -484,9 +601,9 @@ sub readconfig {
 	# $debug && print STDERR "Dev types $typ\n";
 	if ($istype{$typ}) {
 	  $isdevtypes{$d, $typ} = 1;
-	  foreach $v ( split(/[ ,\t\n]+/, $vars{$typ}) )  {
+	  foreach $v ( split(/[ ,\t\n]+/, $typevars{$typ}) )  {
 	    #	$debug && print STDERR " $v\n";
-	    $devvar{$d} .= "$v " ;
+	    $devvars{$d} .= "$v " ;
 	  }
 	}
       }				# foreach $typ
@@ -498,8 +615,8 @@ sub readconfig {
   if ($#devices < 0) {die ("No devices to monitor, exiting")};
   if ($debug > 1) {
     foreach $d (@devices) {
-      $d = &toindex($d);
-      print STDERR "(debug) readconfig Device $d, variables = $devvar{$d}\n";
+      my $x = &toindex($d);
+      print STDERR "(debug) readconfig Device $d, variables = $devvars{$x}\n";
     }
   }
 
@@ -514,8 +631,7 @@ sub readconfig {
 #     ping -s host pktsize count        # SunOS & Solaris
 #     ping -c count -s pktsize host     # all others ?
 sub doping {
-  my $rhost = @_ ;
-  my $ping = "ping" unless $ping;
+  my ($rhost) = @_ ;
   my $value = 0 ;		# 1 for up, 0 for down
     
   $ostype= `uname -s -r -m`  unless $ostype; # OS, revision, arch
@@ -547,37 +663,41 @@ sub doping {
   return ($value);
 }				# end doping()
 
+# this runs snmpwalk, and stores all values for each var as a tab separated
+# list.
 sub get_snmpdata {
-  my $device = @_;
+  my ($device) = @_;
   my $d = &toindex($device) ;
     
-  foreach my $var ( split(/[ ,\t\n]+/, $devvar{$d}) ) {
+  foreach my $var ( split(/[ ,\t\n]+/, $devvars{$d}) ) {
     next if ($var =~ /^\s*$/);
     my $v = &toindex($var);
     my $cmd = "$snmpwalk $device $cid{$d} $var";
       
     $nvarval{$v} = "" ;	# init to null string
-    if ($debug > 1) {print STDERR "  (debug) running $cmd\n";}
+    if ($debug > 2) {print STDERR "  (debug) running $cmd\n";}
     open (CMD, "$cmd |") ;
-    $_ = <CMD> ;		# first line indicates error from snmpwalk
-    if (! /^Name:/ ) {
-      print STDERR "snmpwalk ERROR for $device/$var: $_\n" ;
-      close (CMD);
-      next;			# skip
-    }
     while (<CMD>) {
       # if ($debug > 1) {print STDERR "(debug) CMD output= $_";}
-      next if (/^Name:/);
       chomp;
       # if (/^\s*\S+:(\D*|\s*)(\d+)(\D*|\s*)$/) { # extract number
-      if (/^[A-Z]+\s*\D+:\s*(\S+.*)\s*$/) { # any non-space value
-	my $val = $1;
+      # if (/^[A-Z]+\s*\D+:\s*(\S+.*)\s*$/) { # any non-space value
+      if (/^Name:\s+(\S+)\s+\-\>\s+.+\S:\s+(.*)$/) {
+	my $val = $2;
 	$nvarval{$v} .= "$val\t"; # use tab as field separators
+	# if ($debug > 1) print STDERR "val is $val\n";	#
+      }
+      elsif (/^\s*End\s*.+requested\s*OID/i) {	# normal exit
+	last;
+      }
+      else {
+	$debug && print STDERR "snmpwalk ERROR for $device/$var: $_\n" ;
+	last;
       }
     }	# while(CMD)
     close (CMD);
-    $debug && print STDERR "Stored nvarval{var} = $nvarval{$v}\n";
-  }				# foreach $var
+    ($debug > 1) && print STDERR "Stored nvarval{var} = $nvarval{$v}\n";
+  }	# foreach $var
 
 }
 
