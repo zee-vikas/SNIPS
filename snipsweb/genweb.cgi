@@ -96,7 +96,7 @@ use vars qw (
 	     @level_color @level_imgs $emptyimg $tfontsize $max_table_rows
 	     %updates $q $refresh $large_refresh $my_url $prognm @z1
              $sec $min $hour $mday $mon $year $weekday $yrday $daylite
-	     $debug @row_data $cgimode $filter_cgi
+	     $debug @row_data $cgimode $filter_cgi $gen_cgi_links
 	    );
 
 $snipsroot = "/usr/local/snips"  unless $snipsroot;	# SET_THIS
@@ -114,7 +114,7 @@ foreach my $dfile (@dfiles) {
   get_row_data($dfile);
 }
 sort_rows();
-print_http_header();
+print_http_header($refresh);
 print_html_prologue($refresh);
 print_column_headers();
 print_row_data();
@@ -205,7 +205,7 @@ sub init {
   $newevents = 0;
 
   if (defined($ENV{'SERVER_NAME'})) { $cgimode = 1;}
-  else { $cgimode = 0; }
+  else { $cgimode = 0; $gen_cgi_links = 0; }
 
   @z1 = ('00' .. '59');	# To convert single digit minutes -> 08
 
@@ -214,6 +214,24 @@ sub init {
   $my_url =~ s/;/&/g;
 
   $debug = 0 unless $debug;
+
+  ## Instead of setting the font everywhere and increasing the size of
+  #  the HTML, just define a stylesheet. NOT USED CURRENTLY
+  $myStyle=<<END;
+   body {
+     font-size: 8pt;
+     font-family: Arial, Helvetica, sans-serif;
+     background:  white;
+   }
+  td {
+    font-size: 8pt;
+    font-family: Arial, Helvetica, sans-serif;
+  }
+  pre {
+    font-size: 10pt;
+    font-family: monospace;
+  }
+END
 
 }	# init()
 
@@ -233,7 +251,8 @@ sub read_status_file {
   close (INPUT);
 }	# read_status_file
 
-# Get all log files from SNIPS data directory (extract only those
+#------------------------------------------------------------
+## Get all log files from SNIPS data directory (extract only those
 # files that have '-output' as prefix).
 sub get_datafile_names {
   opendir(DATADIR, $datadir) 
@@ -244,8 +263,9 @@ sub get_datafile_names {
   return @dfiles;
 }
 
+#------------------------------------------------------------
+##
 sub process_parameters {
-  
   $view=$q->param('view');
 #  $view = 'User' if !defined($view);
 
@@ -266,27 +286,28 @@ sub process_parameters {
   my $m=$q->param('maxrows');
   $max_table_rows=$m if defined($m);
   
-}
+}	# process_parameters()
 
 #------------------------------------------------------------
-# Print HTTP header
-sub print_http_header {
-
-  my $my_refresh=$refresh;
-  $my_refresh = $large_refresh if (@row_data > $max_table_rows);
-
-  print $q->header(-Refresh=>"$my_refresh; CONTENT=$my_refresh; URL=$my_url",
-                   -expires=>'now');
-}
-
+##
 sub is_admin_mode {
   return ($view eq "User") ? 0 : 1 ;
 }
 
 #------------------------------------------------------------
+## Print HTTP header
+sub print_http_header {
+  my ($my_refresh) = @_;
+  $my_refresh = $large_refresh if (@row_data > $max_table_rows);
+
+  print $q->header(-Refresh=>"$my_refresh; URL=$my_url", -expires=>'now');
+}
+
+#------------------------------------------------------------
 # Print html start and form buttons to select the severity.
+# $view must be set before calling this.
 sub print_html_prologue {
-  my ($refresh) = @_;
+  my ($my_refresh) = @_;
 
   my $action = $views[$view2severity{$view}];
 
@@ -299,9 +320,15 @@ sub print_html_prologue {
   $today = "$z1[$mon]/$z1[$mday]/$year  $hour:$z1[$min]";  # MMDDYY, US-centric
   #$today = "$year/$z1[$mon]/$z1[$mday]  $hour:$z1[$min]";  # YYMMDD
   $cursecs = time;	# get Unix timestamp
+  my $refresh_url = $cgimode ? "$my_url" : "${baseurl}${view}.html" ;
 
   print $q->start_html(-title=>"SNIPS - $action view", 
-                       -type =>'text/css',
+		       -head=>[
+			       "<META HTTP-EQUIV=\"REFRESH\" CONTENT=\"$my_refresh;URL=$refresh_url\">",
+			       "<META HTTP-EQUIV=\"PRAGMA\" CONTENT=\"NO-CACHE\">"
+			      ],
+##		       -style=>{-code=>$myStyle},
+
                        -bgcolor=>"#FFFFFF",
                        -link=>"#003366",
                        -vlink=>"#003366",
@@ -325,7 +352,7 @@ sub print_html_prologue {
     <P>
     <!-- last update date -->
     <TABLE width="100%" cellpadding=0 cellspacing=0 border=0>
-     <tr><td width=50% align=left> &nbsp;
+     <tr><td width="50%" align=left> &nbsp;
           <b>Current view: <FONT color=$level_color[$view2severity{$view}]>$action</FONT></b>
 	 </td>
 	<td align=right>
@@ -341,7 +368,7 @@ sub print_html_prologue {
         else { age = parseInt(age); }
 	if ( age > 15 ) {
 	  document.write('<td bgcolor=yellow align=right>');
-          document.write('This data is <b>OUTDATED</b></td>');
+          document.write('This data is <b>OUTDATED</b>&nbsp; &nbsp;</td>');
 	}
 	else if (age < 0)
         {
@@ -350,13 +377,13 @@ sub print_html_prologue {
 	else
         {
 	  document.write('<td align=right><font size="-1">(updated ');
-	  document.write(age + ' min ago)</font></td>');
+	  document.write(age + ' min ago)&nbsp;</font></td>');
 	}
 	onError = null;
 	// End -->
     </SCRIPT>
-     </tr>
-     <!-- <tr><td height="6"></td></tr>	<!-- gap -->
+     </tr> <!-- gap -->
+     <!-- <tr><td height="6"></td></tr>	-->
     </TABLE>
     <P></P>
 EOT
@@ -366,7 +393,7 @@ EOT
   if ( is_admin_mode() ) {
     print <<EOT1;
    <!--	--- buttons for other views --- -->
-   <TABLE border = 0 cellpadding=0 cellspacing=5>
+   <TABLE border=0 cellpadding=0 cellspacing=5>
       <TR>
 EOT1
     my $u = URI->new($my_url);
@@ -378,13 +405,17 @@ EOT1
       ($newq=$query) =~ s/view=[A-Za-z]+//;
       $newq .= '&' if $newq;
       $newq .="view=$v";
-#      print "<TD valign=middle><FORM action=\"$p?$newq\" method=\"get\">
-#	<input type=submit name=view value=\"$v\"></FORM></TD>\n";
-      print "<TD valign=middle>
+      if ($gen_cgi_links) {
+	print "<TD valign=middle><FORM action=\"$p?$newq\" method=\"get\">
+	<input type=submit name=view value=\"$v\"></FORM></TD>\n";
+      }
+      else {
+	print "<TD valign=middle>
                <FORM action=\"${baseurl}${v}.html\" method=\"get\">
                 <input type=submit name=view value=\"$v\">
                </FORM> </TD>\n";
-    }
+      }
+    }	# foreach @views
 
     # this button invokes the genweb-filter.cgi script for sorting/selecting
     if ($filter_cgi ne "")
@@ -410,8 +441,8 @@ EOT1
     print "</TD>
       </TR>
    </TABLE>
-   <P><font face=\"arial,helvetica\" size=\"$tfontsize\">
-   <i>Select a device name to update or troubleshoot it </i>
+   <P><font face=\"arial,helvetica\">
+    <i>Select a device name to update or troubleshoot it </i>
    </font></P>";
     print "<P align=center> <b>Filter (CGI) Mode</b></P>\n" if ($cgimode);
   }	# if ($admin mode)
@@ -458,7 +489,7 @@ sub print_column_headers {
     <TABLE cellpadding=0 cellspacing=0 border=0>
        <!-- thin blank line -->
      <TR><td colspan=$numcols bgcolor="#000000">
-	 <img src="$emptyimg"></td></TR>
+	 <img src="$emptyimg" alt="."></td></TR>
        <!-- table header row -->
      <TR bgcolor="#FFFFFF">
 EOT2
@@ -469,10 +500,9 @@ EOT2
       <td nowrap align=center><font face="arial,helvetica" size="$tfontsize"> &nbsp;
        <b>$field</b>  &nbsp;     </font></td>
       <td bgcolor="#AAAAAA" width=1>
-	  <img src=\'$emptyimg\'></td>  <!-- thin vertical divider -->
+	  <img src=\'$emptyimg\' alt="."></td>  <!-- thin vertical divider -->
 EOT2a
     }	# foreach $field
-  print "</TR>\n";
   
   print <<EOT2b;
     </TR>
@@ -849,7 +879,7 @@ sub show_config {
   my($query) = @_;
   my(@values,$key);
 
-  print "<hr width=\"20\%\" shade align=\"left\"><br>
+  print "<hr width=\"20\%\" align=\"left\"><br>
           <b>Current filter settings for this view</b>\n
           <p><font size=\"-1\">";
   foreach $key ($query->param) {
@@ -865,8 +895,8 @@ sub show_config {
 sub print_footer {
    ## simple footer
   # print $q->comment("FUNCTION --- print_footer"), "\n";
-  print $q->p("<hr width=\"20\%\" shade align=\"left\">"), "\n";
-  print "<font size=\"-2\">
+  print $q->p("<hr width=\"20\%\" align=\"left\">"), "\n";
+  print "<font size=\"1\">
 <a href=\"http://www.netplex-tech.com/software/snips\">SNIPS- v$VERSIONSTR</a>";
    print "\n </BODY>\n</HTML>\n";
 }
@@ -948,7 +978,7 @@ sub logerr {
 #------------------------------------------------------------
 sub ooops {
   my ($msg) = @_;
-  print_http_header();
+  print_http_header(300);	# refresh to 5 minutes
   print $q->start_html(-title=>"SNIPS - $action view", 
                        -type =>'text/css',
                        -bgcolor=>"#FFFFFF",
