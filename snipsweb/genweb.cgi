@@ -106,7 +106,7 @@ my $versionid = '$Id$ ';#
 #
 #########################################################################
 
-my $SNIPSVERSION = "1.1";			# version
+my $SNIPSVERSION = "1.2";			# version
 # Global variables.
 use strict;
 use vars qw (
@@ -638,8 +638,16 @@ sub print_row {
   my @rowcolor = ("#FFFFcc", "#D8D8D8");	# alternating row colors
   my $action   = $views[$view2severity{$view}];
 
-  my $update = ($updates{"$ev->{device_name}:$ev->{device_addr}:$ev->{var_name}"} 
-		or '');
+  my( $update );
+  if ( ! $ev->{device_subdev} ){
+    $update =
+       ($updates{"$ev->{device_name}:$ev->{device_addr}:$ev->{var_name}"} 
+       or '');
+  } else {
+    $update =
+       ($updates{"$ev->{device_subdev}+$ev->{device_name}:$ev->{device_addr}:$ev->{var_name}"} 
+       or '');
+  }
   $update = "OLD DATA" if ($ev->{state} & $n_OLDDATA);
 
   #if ($update eq "") {$update = $updates{"$ev->{device_name}:$ev->{device_addr}"}; }
