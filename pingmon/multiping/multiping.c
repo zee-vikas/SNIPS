@@ -35,14 +35,12 @@ static char rcsid[] = "$Header$" ;
  *
  *
  * $Log$
- * Revision 1.9  1994/09/07 03:25:49  vikas
- * Changed the inet_ntoa()  in pr_addr to a simple conversion of
- * long instead of '*&l'
+ * Revision 1.10  1994/12/19 03:38:36  vikas
+ * Fixed the inet_ntoa() call.
  *
  * Revision 1.8  1994/03/25  13:41:46  vikas
  * Added fprintf() so that in sendto errors, the sitename is printed out
  * to stderr instead of to stdout.
- *
  *
  * Revision 1.7  1994/01/03  22:48:31  aggarwal
  * Deleted 'values.h' include. Also forced a delay in pinger() if
@@ -148,7 +146,7 @@ main(argc, argv)
   register int    i;
   int             ch, fdmask, hold, preload;
   u_char         *datap;
-  char           hnamebuf[MAXHOSTNAMELEN], *malloc();
+  char           *malloc();
 #ifdef IP_OPTIONS
   char            rspace[3 + 4 * NROUTES + 1];	/* record route space */
 #endif
@@ -426,7 +424,7 @@ real_pinger(which)
     if (i < 0)
       perror("ping: sendto");
     fprintf(stderr, "    wrote %d chars for %s, sent=%d\n", cc,
-           inet_ntoa(*(struct in_addr *) &to->sin_addr.s_addr), i);
+           inet_ntoa(to->sin_addr), i);
   }
   if (!(options & F_QUIET) && options & F_FLOOD)
     write(STDOUT_FILENO, &DOT, 1);
@@ -521,7 +519,7 @@ pr_pack(buf, cc, from)
   if (cc < hlen + ICMP_MINLEN) {
     if (options & F_VERBOSE)
       fprintf(stderr, "%s: packet too short (%d bytes) from %s\n", prognm, cc,
-	inet_ntoa(*(struct in_addr *) & from->sin_addr.s_addr));
+	inet_ntoa(from->sin_addr));
     return;
   }
   /* Now the ICMP part */
@@ -537,10 +535,7 @@ pr_pack(buf, cc, from)
 
     /* if so, figure out which site it is in the dest[] array */
     for (wherefrom = 0; wherefrom < numsites; wherefrom++)
-/*** Need to compare the fields since BSDI messes up ***
- *      if (!memcmp((char *) & (dest[wherefrom]->sockad), from,
- *		  sizeof(struct sockaddr_in)))
- */
+    /* Need to compare the individual fields and not entire structure */
       if ((dest[wherefrom]->sockad.sin_family == from->sin_family) &&    
 	  (dest[wherefrom]->sockad.sin_port == from->sin_port) &&
 	  (dest[wherefrom]->sockad.sin_addr.s_addr == from->sin_addr.s_addr))
@@ -552,7 +547,7 @@ pr_pack(buf, cc, from)
       return;
     }
     dst = dest[wherefrom];
-    icp->icmp_seq;
+/*    icp->icmp_seq;		/* ??? */
     ++dst->nreceived;
 
     /* figure out round trip time, check min/max */
@@ -590,7 +585,7 @@ pr_pack(buf, cc, from)
       write(STDOUT_FILENO, &BSPACE, 1);
     else {
       printf("%d bytes from %s: icmp_seq=%u", cc,
-        inet_ntoa(*(struct in_addr *) &from->sin_addr.s_addr),
+	inet_ntoa(from->sin_addr),
         icp->icmp_seq);
       printf(" ttl=%d", ip->ip_ttl);
       if (timing)
@@ -1039,8 +1034,8 @@ pr_iph(ip)
   printf("   %1x %04x", ((ip->ip_off) & 0xe000) >> 13,
 		(ip->ip_off) & 0x1fff);
   printf("  %02x  %02x %04x", ip->ip_ttl, ip->ip_p, ip->ip_sum);
-  printf(" %s ", inet_ntoa(*(struct in_addr *) & ip->ip_src.s_addr));
-  printf(" %s ", inet_ntoa(*(struct in_addr *) & ip->ip_dst.s_addr));
+  printf(" %s ", inet_ntoa(ip->ip_src));
+  printf(" %s ", inet_ntoa(ip->ip_dst));
   /* dump and option bytes */
   while (hlen-- > 20) {
     printf("%02x", *cp++);
@@ -1058,12 +1053,14 @@ pr_addr(l)
 {
   struct hostent *hp;
   static char     buf[80];
+  struct in_addr tmp_inaddr;	/* tmp struct for inet_ntoa */
 
+  tmp_inaddr.s_addr = l;
   if ((options & F_NUMERIC) ||
       !(hp = gethostbyaddr((char *) &l, 4, AF_INET)))
-    sprintf(buf, "%s", inet_ntoa(l));
+    sprintf(buf, "%s", inet_ntoa(tmp_inaddr));
   else
-    sprintf(buf, "%s (%s)", hp->h_name, inet_ntoa(l));
+    sprintf(buf, "%s (%s)", hp->h_name, inet_ntoa(tmp_inaddr));
   return (buf);
 }
 
