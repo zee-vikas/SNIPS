@@ -152,7 +152,7 @@ Eof1
   $title = uri_escape($title);		# replace space with %20 for URL
   $legend = uri_escape($legend);
 
-  foreach my $rfile (@rrdfiles)
+  foreach my $rfile (sort @rrdfiles)
   {
     chomp $rfile;
     my $imgurl = do_graph($rfile, 'd');	# generates file on disk
