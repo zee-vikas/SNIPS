@@ -214,21 +214,29 @@ sub vmstat {
   close (CMD);
   
   
-  # to extract the pagein and pageout info (from jhenders@bogon.com)
-  # Code to sleep and extract deltas from frank@ansto.gov.au
+  # to extract the pagein and pageout info
   my $sleepsecs = 5;
-  my @stat = `cat /proc/stat`;
-  $stat[6] =~ /page\s+(\d+)\s+(\d+)/;
-  my ($opi, $opo) = ($1, $2);
+  my ($opi, $opo, $pi, $po) = (0,0,0,0);
+  open(CMD, "cat /proc/stat |");
+  while (<CMD>) {
+    next unless /^page\s*(\d+)\s*(\d+)/;
+    ($opi, $opo) = ($1, $2);
+    close (CMD);
+    last;
+  }
   sleep($sleepsecs);
-  @stat = `cat /proc/stat`;
-  $stat[6] =~ /page\s+(\d+)\s+(\d+)/;
-  my ($pi, $po) = ($1, $2);
+  open(CMD, "cat /proc/stat |");
+  while (<CMD>) {
+    next unless /^page\s*(\d+)\s*(\d+)/;
+    ($pi, $po) = ($1, $2);
+    close(CMD);
+    last;
+  }
   $pi -= $opi; $pi = int(($pi / $sleepsecs) + 0.5);
   $po -= $opo; $po = int(($po / $sleepsecs) + 0.5);
   print "PageIn $pi pi\n";
   print "PageOut $po po\n";
-  
+
 }				# end &vmstat()
 
 
