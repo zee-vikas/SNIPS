@@ -106,7 +106,7 @@ my $versionid = '$Id$ ';#
 #
 #########################################################################
 
-my $SNIPSVERSION = "1.0";			# version
+my $SNIPSVERSION = "1.1";			# version
 # Global variables.
 use strict;
 use vars qw (
@@ -185,7 +185,9 @@ sub init {
 
   @z1 = ('00' .. '59');	# To convert single digit minutes -> 08
 
-  $thiscgi = new CGI;
+  if ($cgimode) { $thiscgi = new CGI(); }
+  else { $thiscgi = new CGI({}); }	# avoid asking for cmd line parameters.
+
   $my_url = $thiscgi->self_url;
   $my_url =~ s/;/&/g;
   # $my_url =~ s|http://localhost/||;	# cannot have localhost in URL
@@ -262,7 +264,7 @@ sub get_datafile_names {
 ##
 sub process_parameters {
   $view=$thiscgi->param('view');
-#  $view = 'User' if !defined($view);
+  if ( (!defined($view)) || ($view =~ /^\s*$/) ) {$view = 'User'};
 
   # Did we specify a sound to play? If so, what sound? 
   my $s=$thiscgi->param('sound');
@@ -315,7 +317,8 @@ sub print_html_prologue {
   print $thiscgi->start_html(-title=>"SNIPS - $action view", 
 		       -head=>[
 			       "<META HTTP-EQUIV=\"REFRESH\" CONTENT=\"$my_refresh;URL=$refresh_url\">",
-##			       "<META HTTP-EQUIV=\"PRAGMA\" CONTENT=\"NO-CACHE\">"
+##			       "<META HTTP-EQUIV=\"PRAGMA\" CONTENT=\"NO-CACHE\">",
+			       "<META NAME=\"keywords\" CONTENT=\"snips,nocol,nms\">"
 			      ],
 		       -style=>{-code=>$myStyleSheet},
                        -bgcolor=>"#FFFFFF",
@@ -334,7 +337,7 @@ sub print_html_prologue {
 	  <font face="arial,helvetica" size=5 color="#FFFF00">
           <b>&nbsp;S&nbsp;N&nbsp;I&nbsp;P&nbsp;S&nbsp;</b></font>
 	  <font face="arial,helvetica" size=3 color="#FFFFFF">
-          <b>&nbsp;(System and Network Integrated Polling Software)&nbsp;</b>
+          <b>&nbsp;(System &amp; Network Integrated Polling Software)&nbsp;</b>
 	  </font></td>
      </tr>
      <tr><td height="6"> &#160 </td></tr>	<!-- vertical space -->
@@ -444,7 +447,7 @@ EOT1
     <i>Select a device name to update or troubleshoot it </i>
    </font></P>\n";
     print "<P align=center> <b>Filter (CGI) Mode</b></P>\n" if ($cgimode);
-  }	# if ($admin mode)
+  }	# if ($view != "user")
   else {	# User mode, no useful buttons
 
     print <<EOT1a;
@@ -454,7 +457,7 @@ EOT1
        <input type=hidden name=restoreurl value="$restore_url">
    </FORM> </P>
 EOT1a
-  }	# if-else (admin-mode)
+  }	# if-else ($view != "user")
 
 }  # print_html_prologue()
 
