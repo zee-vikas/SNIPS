@@ -12,6 +12,18 @@
 #
 #	Copyright 1994-2001, Netplex Technologies, Inc.
 #
+#
+# Changes by Darin Davis (Jan 2002):
+#
+# - added numerous debug statements (debug level 3) and some code comments
+#   changed '@devicelist' to '@devices' in script header documentation
+# - changed first debug statement in procdata_router from
+#   'Running procdata_cisco_router' to 'Running procdata_router'
+# - changed 'if' to 'elsif' on match for ifSpeed in procdata_router()
+# - commented out 'print "VARIABLE $varalias VALUE\n" in procdata_router()
+#   (doesn't belong in /tmp/snmpmon/*.snmpmon files)
+# - added test for non-positive ifSpeed in procdata_router(); without it,
+#   division by zero errors occur on tunl0 and ppp0 interfaces
 ######
 # Program to poll SNMP variables from various devices. Needs configuration
 # data for the format:
@@ -37,7 +49,7 @@
 # monitor are preset for each 'type', and any custom data parsing is done
 # for each 'type'.
 #
-#	@devicelist		list of devices to monitor
+#	@devices		list of devices to monitor
 #	%typevars{$type}	list of SNMP variables for each TYPE
 #	%devvars{$device}	list of SNMP variables for each DEVICE
 #	%nvarval{$var}		current values for device being monitored
@@ -64,7 +76,7 @@ use vars qw ( $snipsroot $etcdir $bindir $snmpget $snmpwalk $mibfile
 	    );
 
 BEGIN {
-  $snipsroot =  "/usr/local/snips"   unless $snipsroot;	# SET_THIS
+  $snipsroot =   "/usr/local/snips"    unless $snipsroot;	# SET_THIS
   push (@INC, "$snipsroot/etc"); push (@INC, "$snipsroot/bin");
   require "snipsperl.conf" ;		# local customizations
 }
@@ -76,7 +88,7 @@ $TMPDATADIR  = "/tmp/snmpmon_data" unless $TMPDATADIR;
 $etcdir  = "$snipsroot/etc"  unless $etcdir;	# location of config file
 $bindir  = "$snipsroot/bin"  unless $bindir;
 
-$ping =  "ping"  unless $ping;		# SET_THIS to ping location
+$ping =   "/bin/ping"   unless $ping;		# SET_THIS to ping location
 $snmpget  = "$bindir/snmpget" unless $snmpget ;	# location of snmpget
 $snmpwalk = "$bindir/snmpwalk" unless $snmpwalk;# location of snmpwalk
 #$mibfile = "$etcdir/mibII.txt" ;	# location of MIB file SET_THIS
@@ -84,7 +96,7 @@ $mibfile = "$etcdir/mib-v2.txt" ;	# location of MIB file SET_THIS
 $ENV{"MIBFILE"}= $mibfile ;
 $ENV{"MIBFILE_v2"}= $mibfile ;
 
-$debug = 0;				# set to 1 for debugging output
+$debug = 0;				# set to 1, 2 or 3 for debugging output
 $prognm = $0;				# save program name
 $sleeptime = 10 ;			# in seconds
 
@@ -311,57 +323,84 @@ sub procdata_router {
   my (@ifDescr, @ifSpeed) = (undef, undef);
 
   $debug && 
-    print STDERR "(debug) Running procdata_cisco_router for device $dev\n";
+    print STDERR "procdata_router: device: $dev\n";
+  ($debug>2) && print STDERR "procdata_router: prevtime{$d}, testtime: $prevtime{$d}, $testtime\n";
+
+					# for each router MIB var
   foreach my $var ( @{$typevars{"router"}} ) {
     my $v = &toindex($var) ;
 
+    ($debug>2) && print STDERR "procdata_router: var: $var\n";
     next if (! defined(@{$nvarval{$v}}) );
+    ($debug>2) && print STDERR "procdata_router: v: $v\n";
 
     # Print values for some variables, deltas for some...
+
+					# don't write out ifDescr or ifSpeed
     if ($var =~ /ifDescr/) {@ifDescr = @{$nvarval{$v}} ;}
-    if ($var =~ /ifSpeed/) {@ifSpeed = @{$nvarval{$v}} ;}
+    elsif ($var =~ /ifSpeed/) {@ifSpeed = @{$nvarval{$v}} ;}
+
+					# write ifOutQLen for each interface
     elsif ($var =~ /ifOutQLen/) # need value, not rate
     {
+					# behead everything up to '.ifOutQLen'
       my ($varalias) = ( $var =~ /^.*(\.[^.]+)$/ ) ;
       $varalias = $mibalias{router} . $varalias ;
+					# ASSERT: varalias = RTR.ifOutQLen
+      ($debug>2) && print STDERR "procdata_router: varalias: $varalias\n";
       my $i = 0;
       foreach ( @{$nvarval{$v}} ) {
 	print "$varalias $_ VALUE $ifDescr[$i++]\n" ;
       }
     }
+
     elsif ($var =~ /Octets|Pkts|Errors/) # extract rates
     {
       if (! defined(@{$prev_varval{$d,$v}}) ) {	# store prev val first
 	@{$prev_varval{$d, $v}} = @{$nvarval{$v}} ; # store new values
 	next;
       }
+      ($debug>2) && print STDERR "procdata_router: var: $var\n";
 
+					# subtract old values from new values
       my @deltaval =
 	&vector_calc( \@{$nvarval{$v}} , "-" , \@{$prev_varval{$d,$v}} );
 
       if ($#deltaval >= 0)
       {
+        ($debug>2) && print STDERR "procdata_router: dtime: $dtime\n";
 	my @deltarate =  &vector_calc(\@deltaval, "/", \$dtime);
 	
 	# shorten the prefix
 	my ($varalias) = ( $var =~ /^.*(\.[^.]+)$/ ) ;
 	$varalias = $mibalias{router} . $varalias ;
+        ($debug>2) && print STDERR "procdata_router: varalias: $varalias\n";
 	my $i = 0;
 	foreach (@deltarate) {
-	  print "$varalias $_ RATE-sec $ifDescr[$i++]\n" ;
+          ($debug>2) && print STDERR "$varalias $_ RATE-sec $ifDescr[$i]\n";
+	  print "$varalias $_ RATE-sec $ifDescr[$i++]\n";
 	}
 	if ($var =~ /Octets/)	# extract bandwidth utilized
 	{
 	  $i = 0;
-	  $varalias =~ s/Octets/BW/ ;
-	  print "VARIABLE $varalias VALUE\n" ;
+	  $varalias =~ s/Octets/BW/;
+	  #print "VARIABLE $varalias VALUE\n";
+          ($debug>2) && print STDERR "VARIABLE $varalias VALUE\n";
 	  foreach (@deltarate) {
-	    printf "$varalias %d VALUE $ifDescr[$i]\n",
-	       int(($_ * 8 * 100) / $ifSpeed[$i++]); # percentage
+	    if ($ifSpeed[$i] > 0) {	# calc percentage util
+	      printf "$varalias %d VALUE $ifDescr[$i]\n",
+	        int(($_ * 8 * 100) / $ifSpeed[$i++]);
+	    } else {			# can't div by 0; "util" = ifSpeed
+	      printf "$varalias %d VALUE $ifDescr[$i]\n", $ifSpeed[$i++];
+	    }
 	  }
 	}
       }				# end if(size != 0)
+      else { ($debug>2) &&
+	print STDERR "procdata_router: last element of deltaval: $#deltaval\n"}
     }
+    else { ($debug>2) &&
+	print STDERR "procdata_router: unknown var: $var\n"}
 
     @{$prev_varval{$d, $v}} = @{$nvarval{$v}} ; # store new values
 
@@ -579,6 +618,10 @@ sub vector_calc {
   else { @vecb = @$b; }
 
   if ($debug > 1) {print STDERR "vector_calc: To do operation $op\n" ; }
+  if ($debug > 2) {
+    print STDERR "vector_calc: veca = ", join (", ", @veca), "\n" ;
+    print STDERR "vector_calc: vecb = ", join (", ", @vecb), "\n" ;
+  }
   # Remember that perl array indexes start from 0 (none = -1)
   if ($#veca < 0 || $#vecb < 0)  {return @result; }
   
@@ -633,18 +676,19 @@ sub readconfig {
     { $startdevices = 1; next ; }
     next if (! $startdevices);	# skip all lines until STARTDEVICES
 
+    ($debug>2) && print STDERR "readconfig: device def: $_\n" ;
     if ( /^\s*(\S+)\s+(\S+)\s+(\S+.*$)/ )
-    {	
+    {
       push (@devices, "$1");
       $d = &toindex("$1");
       $cid{$d}=  "$2";
       # remaining are device types
       foreach $typ (split(/[ ,\t\n]+/, $3)) {
-	# $debug && print STDERR "Dev types $typ\n";
+	($debug>2) && print STDERR "readconfig: dev type: $typ\n";
 	if ($istype{$typ}) {
 	  $isdevtypes{$d, $typ} = 1;
-	  foreach $v ( @{$typevars{$typ}} )  {
-	    #	$debug && print STDERR " $v\n";
+	  foreach $v ( @{$typevars{$typ}} ) {
+	    ($debug>2) && print STDERR "readconfig: devvar: $v\n";
 	    push (@{$devvars{$d}}, "$v");
 	  }
 	}
@@ -701,7 +745,7 @@ sub doping {
   }				# end: while(CMD)
   close (CMD);
 
-  $debug && print STDERR "(dbg) doping return for $rhost =$value\n" ;
+  $debug && print STDERR "(debug) doping return for $rhost =$value\n" ;
   return ($value);
 }		# end doping()
 
@@ -717,17 +761,17 @@ sub get_snmpdata {
     my $cmd = "$snmpwalk $device $cid{$d} $var";
 
     @{$nvarval{$v}} = () ;	# init to empty array
-    if ($debug > 2) {print STDERR "  (debug) running $cmd\n";}
-    open (CMD, "$cmd |") ;
+    if ($debug > 2) {print STDERR "get_snmpdata: running '$cmd'\n";}
+    open (CMD, "$cmd |");
     while (<CMD>) {
-      # if ($debug > 1) {print STDERR "(debug) CMD output= $_";}
+      ($debug > 1) && print STDERR "get_snmpdata: CMD output= $_";
       chomp;
       # if (/^\s*\S+:(\D*|\s*)(\d+)(\D*|\s*)$/) { # extract number
       # if (/^[A-Z]+\s*\D+:\s*(\S+.*)\s*$/) { # any non-space value
       if (/^Name:\s+(\S+)\s+\-\>\s+.+\S:\s+(.*)$/) {
 	my $val = $2;
 	push ( @{$nvarval{$v}}, "$val" );
-	# if ($debug > 1) print STDERR "val is $val\n";	#
+	($debug > 1) && print STDERR "get_snmpdata: val is $val\n";
       }
       elsif (/^\s*End\s*.+requested\s*OID/i) {	# normal exit
 	last;
@@ -742,7 +786,6 @@ sub get_snmpdata {
       print STDERR "Stored nvarval{$var} = ",
                    join (" ", @{$nvarval{$v}}), "\n";
   }	# foreach $var
-
 }
 
 ## Die on getting a terminate signal. Clean up data files.
@@ -790,8 +833,12 @@ while (1) {
     print "TIME $testtime ", scalar(localtime), "\n";
     print "DEVICE $dev\n";
     get_snmpdata($dev);
+    ($debug>2) && print STDERR "old prevtime{$d}, testtime: $prevtime{$d}, $testtime\n";
+
+    $prevtime{$d} = $testtime;		# ASSERT: prevtime{d} contains time of
+					#	  last poll
     $testtime = int((time + $testtime) / 2);	# take average
-    $prevtime{$d} = $testtime ;
+    ($debug>2) && print STDERR "new prevtime{$d}, testtime: $prevtime{$d}, $testtime\n";
 
     # process each type of variable for the device
     foreach my $typ (@devicetypes) {
@@ -806,4 +853,3 @@ while (1) {
   $debug && print STDERR "Sleeping for $sleeptime...\n";
   sleep $sleeptime ;
 }				# end while(1)
-
