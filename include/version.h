@@ -3,7 +3,7 @@
  */
 
 /*
-  Copyright 1994, 1997 Vikas Aggarwal, vikas@navya_.com
+  Copyright 2001, Netplex Technologies Inc., info@netplex-tech.com
 
   Permission to use, copy, modify and distribute this software and its
   documentation for any purpose is hereby granted  without fee, provided
@@ -24,6 +24,6 @@
 
 #ifndef _SNIPSVERSION_
 # define _SNIPSVERSION_
-  static char snips_version[] = "1.0 Beta1" ;
+  static char snips_version[] = "1.0" ;
 #endif
 
