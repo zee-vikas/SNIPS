@@ -12,6 +12,6 @@
 #
 ## Find old images and rrd files and clean them out. Uncomment after checking
 #  syntax.
-15 3 * * *	find @ROOTDIR@/rrd-imgcache @ROOTDIR@/rrddata -xdev -depth -mtime +7 -exec  /bin/rm -f {} \; 2>/dev/null
-15 4 * * *	find @ROOTDIR@/rrd-imgcache @ROOTDIR@/rrddata -xdev -depth -mtime +7 -type d -exec  /bin/rmdir -f {} \; 2>/dev/null
+15 3 * * *	find @ROOTDIR@/rrd-images @ROOTDIR@/rrddata -xdev -depth -mtime +7 -exec  /bin/rm -f {} \; 2>/dev/null
+15 4 * * *	find @ROOTDIR@/rrd-images @ROOTDIR@/rrddata -xdev -depth -mtime +7 -type d -exec  /bin/rmdir -f {} \; 2>/dev/null
 #
