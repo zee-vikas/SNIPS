@@ -8,7 +8,17 @@ hostmon
    (especially DFspace). Probably due to errors in regexp pattern.
    Should be fixed in v1.2
 
-pingmon
--------
- - response time in multiping larger than actual (fixed in v1.2)
+genweb.cgi
+----------
+When using nsmon, the Device name of dns servers in the web report are
+all in the format:   "domain name"+"dns server name"
 
+	e.g. "pacific.net.sg+ns5"
+
+And it seems your genweb.cgi reads & compares the 'updates' file in the
+fashion of "dns server name" only. Such that all the records in updates
+are not matched. Here is a typical line from 'updates'
+
+  pacific.net.sg+ns5:203.120.92.139:named-status  dont care -nocol01
+
+(jonathantse@pacific.net.sg)
