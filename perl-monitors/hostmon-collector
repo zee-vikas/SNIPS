@@ -65,7 +65,7 @@ BEGIN {
 $TMPDATADIR  = "/tmp/hostmon_data" unless $TMPDATADIR;
 $debug = 0 unless $debug;
 $sleeptime=(60*5);		# default sleeptime of 5 minutes
-@hosts = qw (localhost nfs1.jvnc.net) unless @hosts;
+@hosts = qw (localhost server.your.domain) unless @hosts;
 
 # Following service name is used if set in /etc/services file
 $HOSTMON_SERVICE = "hostmon" unless $HOSTMON_SERVICE ;
@@ -180,8 +180,10 @@ sub rpcping {
 sub newSocket {
   my ($host, $service, $nport, $proto) = @_ ;
   use Socket;
+  use FileHandle;
 
   my ($port, $remote_addr, $paddr, $SOCK);
+  $SOCK = new FileHandle;
   $proto = 'tcp' unless $proto;
   $port = getservbyname($service, $proto) if $service;
   $port = $nport unless $port;
