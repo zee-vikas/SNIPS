@@ -49,7 +49,7 @@ PERLMODULE:
 	   echo "Generating  ../perl-module/Makefile"; \
 	   (cd ../perl-module; \
 	    perl Makefile.PL \
-		CC="$(CC)" OPTIMIZE="$(CFLAGS)" LIBS="$(LIBS)" \
+		CC="$(CC)" LD="$(CC)" OPTIMIZE="$(CFLAGS)" LIBS="$(LIBS)" \
 		INSTALLSITELIB=$(ROOTDIR)/lib/perl INSTALLSITEARCH=$(ROOTDIR)/lib/perl INSTALLARCHLIB=$(ROOTDIR)/lib/perl INSTALLMAN3DIR=$(MANDIR) ; \
 	   ) >/dev/null ;\
 	 fi
