@@ -673,7 +673,7 @@ sub print_row {
   }
 
   ## see if this is a recent event (less than $neweventAge minutes old)
-  if ($ev->{loglevel} != $E_INFO &&  time - $ev->{eventime} < $neweventAge)
+  if ($ev->{loglevel} != $E_INFO &&  time - $ev->{eventtime} < $neweventAge * 60)
   {
       ++$newevents;			# total displayed in Messages
       $ifnewbg = "bgcolor=yellow";	# background of the little button
