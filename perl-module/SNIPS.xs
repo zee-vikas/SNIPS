@@ -5,6 +5,13 @@
  * AUTHOR:
  *	Vikas Aggarwal (vikas@navya_.com)  June 2000
  *
+ * $Log$
+ * Revision 0.11  2000/06/28 19:12:19  vikas
+ * Working with the STORE and FETCH functions. However, the TIESCALAR
+ * function does not work so it is renamed to TIESCALAR2 and we use
+ * the perl version of TIESCALAR in SNIPS.pm
+ *
+ *
  */
 #ifdef __cplusplus
 extern "C" {
@@ -513,20 +520,50 @@ close_datafile(fd)
 	close_datafile(fd);
   }
 
-# ######   ######   ######   ######   ######   ######
+# ######   ######   ######   ######   ######   ######   ##### #
 
 MODULE = SNIPS		PACKAGE = SNIPS::globals 	PREFIX = snips_
 
+# This function does not work, use the Perl version instead.
+# The reason that this does not work is that we need the
+# 'reference' (i.e. the address) of the 'var' and what is being
+# passed to this function seems to be a copy. Even though this
+# appears to work, you must check it by setting the debug to 5
+# and then seeing if 'snips_STORE()' prints its debug messages
+# indicating that it is being called as intended.
+
+SV *
+snips_TIESCALAR2(class, var)
+	SV *class;
+	SV *var;
+  PREINIT:
+	char *s;
+	char *t;
+  CODE:
+  {
+	/* if (!SvROK(var))
+		croak("var is not a reference"); /* */
+	RETVAL = newSVrv(newRV_noinc(var), SvPV(class, PL_na));
+  }
+  OUTPUT:
+	RETVAL
+
+
 ## This SETS the global C variables (called by the TIE functions)
 void *
-_STORE(var, value)
-	char *var;
+snips_STORE(ref, value)
+	SV *ref;
 	SV *value;
   PREINIT:
+	char *var;
 	char *s;
   CODE:
   {
-	fprintf(stderr, "debug: trying to SET global '%s'\n", var); /* */
+	if (!SvROK(ref))	/* not a reference */
+		XSRETURN_UNDEF;
+	var = SvPV(SvRV(ref), PL_na);	/* extract what we want to fetch */
+	if (debug >= 5)
+	  fprintf(stderr, "snips_STORE(): trying to SET global '%s'\n", var);
 
 	if      (!strcmp(var, "debug"))      debug = SvIV(value);
 	else if (!strcmp(var, "do_reload"))  do_reload = SvIV(value);
@@ -543,23 +580,29 @@ _STORE(var, value)
 	}
 	else {
 	  if (debug)
-	    fprintf(stderr, "Error: trying to set unknown global '%s'\n", var);
+	    fprintf(stderr, "snips_STORE() Error: unknown global '%s'\n", var);
 	  XSRETURN_UNDEF ;
 	}
 
-	/* RETVAL = value;		/* return what we were sent? */
+	/* RETVAL = value;	/* return what we were sent? Might coredump. */
   }
 
 
 # Fetch the C value of the variable name passed to this function
 SV *
-_FETCH(var)
-	char *var;
+snips_FETCH(ref)
+	SV *ref;
   PREINIT:
+	char *var;
 	char *s;
   CODE:
   {
-	fprintf(stderr, "debug: trying to GET global '%s'\n", var); /* */
+	if (!SvROK(ref))	/* not a reference */
+		XSRETURN_UNDEF;
+	var = SvPV(SvRV(ref), PL_na);	/* extract what we want to fetch */
+
+	if (debug >= 5)
+	  fprintf(stderr, "snips_FETCH(): trying to GET global '%s'\n", var);
 
 	if 	(!strcmp(var, "debug"))	   RETVAL = newSViv(debug);
 	else if (!strcmp(var, "do_reload"))  RETVAL = newSViv(do_reload);
@@ -577,7 +620,7 @@ _FETCH(var)
 	else {
 	  if (debug)
 	    fprintf(stderr,
-			"Error: trying to fetch unknown global '%s'\n", var);
+			"snips_FETCH() Error: unknown global '%s'\n", var);
 
 	  XSRETURN_UNDEF ;
 	}
