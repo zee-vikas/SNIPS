@@ -1,20 +1,36 @@
 #!/usr/local/bin/perl 
 my $vcid = '$Id$ ';#
 
-# my $vcid = '$Id$ ';
 # ------------
-# This CGI creates an HTML status page for collected snips events.
+# This program displays SNIPS events in HTML format (for an alternative
+# to the snipstv curses program).
 #
-#  Various parameters can be used to customize.
-#  view:   selects the view seen possible values are 
+# It can run as a standalone perl program or as a CGI. It detects the
+# mode automatically from the environment.
+#
+# When run as a perl file, it generates 5 HTML files in $webdir/ for each
+# possible 'view':
+#	User.html   Critical.html  Error.html  Warning.html Info.html
+#
 #   User   a critical-only non-updatable page for public use.
-#          We suggest you link index.html to this file so that
-#          it gets displayed by default.
-#   Critical     Critical view - allows updating of status
+#          This can be linked to index.html or copied periodically to
+#	   some web dir so that it is displayed by default for public users.
+#   Critical     Critical view - contains href links to snipsweb.cgi
 #   Error        Error view    _   "       "      "    "
 #   Warning      Warning view  _   "       "      "    "
 #   Info         Information view _"       "      "    "
 #
+# Note that even if a public user were to view any of these files, they
+# still need to authenticate in snipsweb.cgi before they can edit any
+# update file, etc.
+#
+# When run as a CGI, it generates html output directly on stdout and also
+# permits  filtering of the events displayed (calls genweb-filter.cgi to
+# set the parameters). Note however, that in CGI mode every user accessing
+# this CGI will parse the SNIPS datafiles, so if there are many events and
+# many users, this will affect the performance of your system.
+#
+# CGI parameters that can be passed to this program:
 #  view:      see names above
 #  refresh:   refresh interval in seconds, your browers should 
 #             be able to handle this in the HTTP header, most modern browers
@@ -33,7 +49,7 @@ my $vcid = '$Id$ ';#
 #  altprint:  A different table printing format mentioned on the mail archives
 #
 # Here is an example: 
-# http://snips.snips.net/cgi-bin/genweb2.cgi?view=Info&sort=name,varname&refresh=120&sound=0&maxrows=70&monpat=^n
+# http://snips.snips.net/cgi-bin/genweb.cgi?view=Info&sort=name,varname&refresh=120&sound=0&maxrows=70&monpat=^n
 #
 # which means: 
 #
@@ -44,7 +60,7 @@ my $vcid = '$Id$ ';#
 #
 # If I wanted all information about jefe I'd put:
 #
-# http://snips.snips.net:8890/cgi-bin/genweb2.cgi?view=Info&namepat=jefe
+# http://snips.snips.net/cgi-bin/genweb.cgi?view=Info&namepat=jefe
 #
 # This script also reads in an 'updates' file and hide's the event or adds
 # a update message to an event. Once the site comes back up, this script
@@ -54,18 +70,20 @@ my $vcid = '$Id$ ';#
 # Any global 'messages' that are in the snips messages directory are
 # also displayed.
 #
-# The snipsweb.cgi CGI program allows displaying help files, traceroutes,
-# old-logs, and also updating the 'updates' file.
+# The snipsweb.cgi companion CGI allows displaying device help files, 
+# traceroutes, display logs, and also updating the 'updates' file.
 #
 # INSTALLATION
 # ------------
 #
-# 1. customize variables in snipsweb-cfg.pl
-# 2. Create a '/snips/etc/updates' file with the owner being the httpd 
-#    daemon's owner. (this will be edited by the cgi script)
-# 3. Install the snipsweb.cgi CGI script in your CGI directory and set the
-#    URL in this file. Install the entire 'gifs' dir under the
-#    $baseurl directory.
+# 1. Customize variables in snipsweb-cfg.pl
+# 2. Create a '/snips/etc/updates' file with the owner being the user who
+#    will run this script since this script will delete entries once a device
+#    comes back up. If running as a CGI, the owner should be the httpd process.
+# 3. Install the snipsweb.cgi CGI script in your CGI directory. If installing
+#    this file as a CGI, install both 'genweb.cgi' and 'genweb-filter.cgi'
+#    in the CGI dir.
+#    Install the entire 'gifs' dir under the $baseurl directory.
 # 4. If you want to create a separate 'User' view for outsiders, then you
 #    can copy the 'Users.html' file to a public web site. Else create
 #    a link from Critical.html to 'index.html' so that this is the
@@ -73,15 +91,16 @@ my $vcid = '$Id$ ';#
 #    httpd's access mechanism (.htaccess) or else rely on the $etcdir/$authfile
 #    file (see snipsweb.cgi). Either way, you have to create this authfile
 #    to list the users who can edit the various snips files, etc.
-# 5. Create help files, etc. under $snipsroot/device-help/
+# 5. Create device help files, etc. under $snipsroot/device-help/
 #    Note that these help files are HTML files and can contain HTML tags
 #    for formatting and clickable links (see details in the CGI script).
 #
 # AUTHOR
-#	- Richard Beebe (richard.beebe@yale.edu) 1998
+#	- Original version: Richard Beebe (richard.beebe@yale.edu) 1998
 #	- Updates: Vikas Aggarwal (vikas@navya_.com) 1998
 #       - Modernized and turned into CGI with sorting and
-#         selection: Rocky Bernstein (rocky@panix.com) 2000
+#         selection: Rocky Bernstein (rocky@panix.com) May 2000
+#	- Currently maintained by Vikas Aggarwal (vikas@navya_.com)
 #
 #   This script was distributed as part of the SNIPS package.
 #
@@ -96,7 +115,7 @@ use vars qw (
 	     @level_color @level_imgs $emptyimg $tfontsize $max_table_rows
 	     %updates $q $refresh $large_refresh $my_url $prognm @z1
              $sec $min $hour $mday $mon $year $weekday $yrday $daylite
-	     $debug @row_data $cgimode $filter_cgi $gen_cgi_links
+	     $debug @row_data $cgimode $filter_cgi $gen_cgi_links $myStyle
 	    );
 
 $snipsroot = "/usr/local/snips"  unless $snipsroot;	# SET_THIS
@@ -187,10 +206,10 @@ sub init {
   # Since this file is updated via the web (snipsweb.cgi), this file should
   # be owned by 'www' or 'httpd' to allow editing. this must match the
   # file location in the snipsweb.cgi script also.
-  $updatesfile = "$etcdir/updates";		# check this
+  $updatesfile = "$etcdir/updates" unless $updatesfile;	# check this
 
   # This is the URL for invoking the filter script
-  #$filter_cgi = "/cgi-bin/genweb2-config.cgi" unless $filter_cgi;
+  #$filter_cgi = "/cgi-bin/genweb-filter.cgi" unless $filter_cgi;
   
   @views = qw( User Critical Error Warning Info );
   %view2severity = ( User => 1, Critical => 1, Error => 2, Warning => 3,
@@ -524,7 +543,7 @@ sub get_row_data {
   my $namepat   = $q->param('namepat');
   my $varpat    = $q->param('varpat');
   my $monpat    = $q->param('monpat');
-  my $filepat    =$q->param('filepat');
+  my $filepat   = $q->param('filepat');
 
   my $file=$dfile;
   $file =~ s/-output//;
