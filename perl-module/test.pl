@@ -21,6 +21,19 @@ print "ok 1\n";
 # of the test code):
 
 $SNIPS::debug = 2;
+$SNIPS::dorrd = 3;
+$SNIPS::do_reload = 4;
+$SNIPS::dummy = 9;
+$SNIPS::s_configfile = "ConfigFile";
+$SNIPS::s_datafile = "DataFile";
+
+print "dorrd is: ", $SNIPS::dorrd,
+  ", debug is: ",   $SNIPS::debug,
+  ", do_reload is: ", $SNIPS::do_reload,
+  ", configfile is: ", $SNIPS::s_configfile,
+  ", datafile is: ", $SNIPS::s_datafile,
+  "\n";
+
 $av = SNIPS::new_event();
 $bv = SNIPS::new_event();
 SNIPS::init_event($av);
