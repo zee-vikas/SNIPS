@@ -59,7 +59,7 @@ push(@INC, "$RRDLIBDIR/perl");		# location of  RRDs.pm
 use RRDs;
 
 # where are the monitors generating RRD data
-$RRD_DBDIR =  "$snipsroot/rrddata" unless $RRD_DBDIR;	# SET_THIS
+$RRD_DBDIR = "$snipsroot/rrddata" unless $RRD_DBDIR;	# SET_THIS
 
 # If the cachedir is defined, then images will be stored in this dir,
 # else they will be written directly to stdout.
@@ -88,7 +88,7 @@ $rrdgraph_cgi =  "/cgi-bin/rrdgraph.cgi" unless $rrdgraph_cgi;
 %timelegend = ( 'y' => '1 year/1 day average',
 		'm' => '1 month/2 hr average',
 		'w' => '1 week/30 min average',
-		'd' => '1 day/10 min average');
+		'd' => '2 days/10 min average');
 
 ## Check how we were called (invoked). Could also be self invoked.
 sub check_security {
@@ -112,7 +112,7 @@ sub get_cgi_variables {
   my @pairs = split(/&/,$buffer);	# Split the the name-value pairs on &
   foreach my $pair (@pairs) {
     my ($name, $value) = split(/=/, $pair);
-    $value =~ tr/+/ /;
+    #$value =~ tr/+/ /;	# replace '+' with space
     # Now convert any HTML'ized characters into their real world
     # equivalent. e.g. a %20 becomes a space. 
     $value =~ s/%([a-fA-F0-9][a-fA-F0-9])/pack("C", hex($1))/eg;
@@ -145,28 +145,29 @@ sub graph_all_subdir {
   <p>Click on a graph to get detailed historical data on a <b>specific variable</b></p>
 Eof1
 
-  $title =~ s/\s/\%20/g;	# replace space with %20 for URL
-  $legend =~ s/\s/\%20/g;
+  my $toc = "<ul>";
+  my $content;
+
+  $title = uri_escape($title);		# replace space with %20 for URL
+  $legend = uri_escape($legend);
 
   foreach my $rfile (@rrdfiles)
   {
     chomp $rfile;
-    #$sitename =~ tr/[a-zA-Z0-9_.\-]//cd;	# strip unwanted characters
+    my $imgurl = do_graph($rfile, 'd');	# generates file on disk
+
     my $var = $rfile;
     $var =~ s/\.rrd$//;
-    $var =~ tr/[a-zA-Z0-9_.\-]//cd;	# remove any unwanted characters
+    $var =~ tr/[a-zA-Z0-9_.\-\%\+]//cd;	# remove any unwanted characters
     my $legstr = "$legend" . "%20$var";	# tack on filename to legend
-    my $imgurl = do_graph($rfile, 'd');	# generates file on disk
-    print <<Eof;
-    <h4>${var}</h4>
-    <A href="${rrdgraph_cgi}?rrdsubdir=${rrdsubdir}&rrdfile=${rfile}&title=$title&legend=$legstr&timescale=A&mode=html">
-     <IMG SRC="$imgurl">
-    </A>
-    <hr>
-Eof
+    $toc .= "<li><a href=\"#${var}\">${var}</a></li>\n";
+    $content .= "  <href name=\"${var}\"><h4>${var}</h4></name>\n" .
+          "  <A href=\"" .
+          uri_escape( "${rrdgraph_cgi}?rrdsubdir=${rrdsubdir}&rrdfile=${rfile}&title=$title&legend=$legstr&timescale=A&mode=html" ) .
+          "\">\n    <IMG SRC=\"$imgurl\">\n   </A>\n  <hr>\n";
   }	# for $rrdfile
-
-  print "  </body>\n </HTML>\n";
+  $toc .= "\n</ul><p>&nbsp;</p>\n";
+  print $toc, $content, "  </body>\n </HTML>\n";
   exit 0;
 }	# graph_all_subdir()
 
@@ -175,7 +176,7 @@ Eof
 sub graph_all_timescales {
   my $var = $rrdfile;
   $var =~ s/\.rrd$//;
-  $var =~ tr/[a-zA-Z0-9_.\-]//cd;	# delete unwanted characters
+  $var =~ tr/[a-zA-Z0-9_.\-\+\%]//cd;	# delete unwanted characters
 
   $mode = "HTML";	# force to html
   print "Content-type: text/html\n\n";
@@ -208,6 +209,20 @@ Eof
   exit 0;
 }	# graph_all_timescales
 
+## From URI.pm
+#
+sub uri_escape {
+  my ($uri) = @_;
+  my %escapes;
+
+  # Build a char->hex map
+  for (0..255) {
+    $escapes{chr($_)} = sprintf("%%%02X", $_);
+  }
+  $uri =~ s/([^;\/?:@&=+\$,A-Za-z0-9\-_.!~*'()])/$escapes{$1}/g; #'; # emacs
+  return $uri;
+}
+
 sub check_rrdfile {
   $rrdfile =~ s/\.\.//g;	# dont allow any '..' characters in filename
   #
@@ -224,7 +239,7 @@ sub check_rrdfile {
 sub do_graph {
   my ($datafile, $tmscale) = @_;	# one of   d w m y
   my $imgmode = "PNG";
-  my $imgfile = "-";		# default generate GIF to stdout
+  my $imgfile = "-";		# default generate image to stdout
 
   if ($mode eq "gif") { $imgmode= "GIF"; }
 
@@ -315,6 +330,7 @@ sub do_graph {
     my $imgurl = $imgfile;
     $debug && print STDERR "URL for $imgfile is $imgurl\n";
     $imgurl =~ s|$IMAGE_CACHEDIR|$RRDIMAGE_URL_PREFIX|;
+    $imgurl = uri_escape($imgurl);
     return $imgurl;
   }
   

@@ -1,8 +1,11 @@
 #!/usr/bin/perl -w
 #
 # CGI to display GUI to invoke genweb.cgi with appropriate parameters.
+# This cgi is typically invoked from genweb.cgi. It sets the various
+# parameters and calls genweb.cgi again.
 #
-# Rocky@panix.com, June 2000
+# Initial version:  Rocky@panix.com, June 2000
+#
 #
 #
 my $vcid = '$Id$ ';
@@ -14,46 +17,58 @@ $snipsroot = "/usr/local/snips";	# SET_THIS
 $etcdir = "$snipsroot/etc";
 push (@INC, $etcdir);
 
-init();
-my $a=$query->param('Action');
-my @monitors = qw ( etherload hostmon ippingmon nsmon ntpmon portmon 
-                    rpcpingmon trapmon ) ;
+require  "snipsperl.conf";
+require  "snipsweb-confg";		# in etcdir
+use CGI;	# also requires Base64.pm
 
+my @monitors = qw( etherload hostmon ippingmon nsmon ntpmon portmon 
+		   rpcpingmon trapmon ) ;
+my @sortfields = qw(name varname deviceaddr varvalue monitor severe);
+
+$debug = 0;	# FIX FIX
+$query = new CGI;
+$debug= $query->param('debug') if $query->param('debug');
+my $a=$query->param('Action');
+
+## user clicked on submit button, create URL  to genweb.cgi with parameters
+#  tacked on and redirect.
 if (defined($a) &&  $a eq 'Submit') {
   my $url=make_url($query);
   print $query->redirect($url);
-} else {
-  set_defaults($query);
-  print $query->header;
-  print $query->start_html("SNIPS Filter Configurator");
-  print "<H1> SNIPS Filter Configurator</H1>\n";
-  &print_prompt($query);
-  show_config($query) if $debug;
-  print $query->end_html;
+  exit 0;
 }
+elsif (defined($a) && $a =~ /^Non-filter/i) {
+  my $url = $query->param('noncgiurl');
+  if (defined($url) && $url ne "") {
+    print $query->redirect($url);
+    exit 0;
+  }
+}
+
+# this script was invoked by external script.
+set_defaults($query);
+print $query->header;
+print $query->start_html("SNIPS Filter Configurator");
+print "<H1> SNIPS Filter Configurator</H1>\n";
+&print_form($query);
+show_config($query) if $debug;
+print $query->end_html;
 
 ###
 ### Subroutines
 ###
-sub init {
-  require  "snipsperl.conf";
-  require  "snipsweb-confg";		# in etcdir
-  use CGI;	# also requires Base64.pm
-  $query = new CGI;
-  $debug= $query->param('debug') if $query->param('debug');
-}
 
-sub print_prompt {
+sub print_form {
   my($query) = @_;
   
   print $query->start_form;
 
   print "<P><EM>Which view?</EM><BR>\n",
-    $query->radio_group(
-			-name=>'view',
-			-value=>['Critical', 'Error', 'Warning',
-				  'Info'],
-			-default=>'Critical');
+        $query->radio_group(
+			    -name=>'view',
+			    -value=>['Critical', 'Error', 'Warning',
+				     'Info'],
+			    -default=>'Critical');
   
   print "<P><EM>Which monitors do you want?</EM><BR>\n";
   print $query->checkbox_group(
@@ -63,38 +78,34 @@ sub print_prompt {
 			       -defaults=> \@monitors);
   
   print "<P><EM>Sound?</EM><BR>\n",
-    $query->radio_group(
-			-name=>'sound', 
-			-value => ['yes', 'no'],
-			-default=>'no' );
+        $query->radio_group(
+			    -name=>'sound', 
+			    -value => ['yes', 'no'],
+			    -default=>'no' );
 
-
-  print "<P><EM>Alternate Print Style?</EM><BR>\n",
-    $query->radio_group(
-			-name=>'altprint', 
-			-value => ['yes', 'no'],
-			-default=>'no' );
+#  print "<P><EM>Alternate Print Style?</EM><BR>\n",
+#        $query->radio_group(
+#			    -name=>'altprint', 
+#			    -value => ['yes', 'no'],
+#			    -default=>'no' );
 
   print "<p>Refresh interval (in seconds)? \n",
-    $query->textfield(-name=>'refresh',
-		      -default=>$refresh,
-		      -size=>5,
-		      -maxlength=>10
-		     ), " (overridden if events more than $max_table_rows)\n";
+        $query->textfield(
+			  -name=>'refresh',
+			  -default=>$refresh,
+			  -size=>5,
+			  -maxlength=>10
+			 ),
+	" (overridden if events more than $max_table_rows)\n";
 
 
   print "<p>Sort order: ",
-    $query->popup_menu(-name=>'sort',
-		       -default=>'name',
-		       -values=>[qw(name varname siteaddr varvalue monitor severe)]
-		       ), "\n";
-#  print "<p>Sort order (name, varname, siteaddr, varvalue, monitor, severe)? \n",
-#    $query->textfield(-name=>'sort',
-#		      -default=>'name',
-#		      -size=>10,
-#		      -maxlength=>15
-#		     ), "\n";
+        $query->popup_menu(
+			   -name=>'sort',
+			   -value=>\@sortfields,
+			   -default=>'name'),
 
+        "\n";
 
   print "<p>file pattern? \n",
     $query->textfield(-name=>'filepat',
@@ -105,23 +116,16 @@ sub print_prompt {
 
 
   print "<P>", $query->reset, "&nbsp; &nbsp;",
-        $query->submit('Action','Reload'), "&nbsp; &nbsp;",
-        $query->submit('Action','Submit'),
-        $query->endform, "<HR>\n";
-}
-
-sub show_config {
-  my($query) = @_;
-  my(@values,$key);
-
-  print "<H2>Here are the current settings in this form</H2>\n";
-  
-  foreach $key ($query->param) {
-    print "<STRONG>$key</STRONG> -> ";
-    @values = $query->param($key);
-    print join(", ",@values),"<BR>\n";
+        $query->submit('Action', 'Reload'), "&nbsp; &nbsp;\n",
+        $query->submit('Action', 'Submit');
+  my $url = $query->param('noncgiurl');
+  if (defined($url) && $url ne "") {
+    print "&nbsp; &nbsp; &nbsp; &nbsp;\n",
+           $query->submit('Action', 'Non-Filter mode'),
+          $query->hidden(-name=>'noncgiurl', -value=> q($url)),
+         "\n";
   }
-  print "<p>", make_url($query);
+  print $query->endform, "<HR>\n";
 }
 
 sub make_url {
@@ -155,6 +159,26 @@ sub make_url {
 # Sets default values for form.
 sub set_defaults {
   my($query) = @_;
+
+  my $values = $query->param('monpat');
+  if ($values =~ /^\s*$/) {
+    $query->param(-name=>'monpat', -value=>\@monitors);
+  }
+  else {
+    my @values = split /|/, $values;
+    $query->param(-name=>'monpat', -value=>\@values);
+  }
 }
 
+sub show_config {
+  my($query) = @_;
 
+  print "<H2>Here are the current settings in this form</H2>\n";
+  # print $query->dump, "<p> _________________<p>\n";
+  foreach my $key ($query->param) {
+    print "<STRONG>$key</STRONG> -> ";
+    my @values = $query->param($key);
+   print join(", ",@values),"<BR>\n";
+  }
+  print "<p>", make_url($query);
+}

@@ -38,7 +38,7 @@ my $versionid = '$Id$ ';#
 #  sound:     define 0 or '' if sound is not desired.
 #  sort:      comma separted list of fields. Major sort the first field,
 #             within that the 2nd field, etc.
-#             sort fields are name, varname, siteaddr, severe, monitor
+#             sort fields are name, varname, deviceaddr, severe, monitor
 #             and varvalue
 #  maxrows:   integer specifies the maximum number of entries to put 
 #             output in tabular format. Beyond this number the items are 
@@ -63,9 +63,9 @@ my $versionid = '$Id$ ';#
 # http://snips.snips.net/cgi-bin/genweb.cgi?view=Info&namepat=jefe
 #
 # This script also reads in an 'updates' file and hide's the event or adds
-# a update message to an event. Once the site comes back up, this script
+# a update message to an event. Once the device comes back up, this script
 # will remove the status line from the 'updates' file (to prevent any
-# confusion when the site goes down next).
+# confusion when the device goes down next).
 
 # Any global 'messages' that are in the snips messages directory are
 # also displayed.
@@ -85,7 +85,7 @@ my $versionid = '$Id$ ';#
 #    in the CGI dir.
 #    Install the entire 'gifs' dir under the $baseurl directory.
 # 4. If you want to create a separate 'User' view for outsiders, then you
-#    can copy the 'Users.html' file to a public web site. Else create
+#    can copy the 'Users.html' file to a public web device. Else create
 #    a link from Critical.html to 'index.html' so that this is the
 #    default page. You can either password protect this URL tree using
 #    httpd's access mechanism (.htaccess) or else rely on the $etcdir/$authfile
@@ -540,21 +540,21 @@ sub get_row_data {
   while ( ($event = read_event($datafd)) ) {
 
     my %ev = unpack_event($event);
-    next if ($ev{site_name} eq "" && $ev{site_addr} eq "");
+    next if ($ev{device_name} eq "" && $ev{device_addr} eq "");
 
     $ev{file}=$file;	# store the filename also
     
-    my $update = $updates{"$ev{site_name}:$ev{site_addr}:$ev{var_name}"};
-    #if ($update eq "") {$update = $updates{"$ev{site_name}:$ev{site_addr}"}; }
-    #if ($update eq "") {$update = $updates{"$ev{site_name}"; }
+    my $update = $updates{"$ev{device_name}:$ev{device_addr}:$ev{var_name}"};
+    #if ($update eq "") {$update = $updates{"$ev{device_name}:$ev{device_addr}"}; }
+    #if ($update eq "") {$update = $updates{"$ev{device_name}"; }
     
     # If device is no longer critical, remove its status information
     if (($ev{severity} > 1) && $update) {
-      &remove_updates_entry($ev{site_name}, $ev{site_addr}, $ev{var_name});
+      &remove_updates_entry($ev{device_name}, $ev{device_addr}, $ev{var_name});
     }
     
     # Are we interested in this event?
-    next if (defined($namepat) && $ev{site_name} !~ /$namepat/);
+    next if (defined($namepat) && $ev{device_name} !~ /$namepat/);
     next if (defined($varpat)  && $ev{var_name}  !~ /$varpat/);
     next if (defined($monpat)  && $ev{sender}   !~ /$monpat/);
     
@@ -573,19 +573,19 @@ sub get_row_data {
 ## Sort the entire @row_data  list of events.
 sub sort_rows {
   my $sort = $thiscgi->param('sort');
-  $sort = "siteaddr" if (! defined($sort));	# default by address
+  $sort = "deviceaddr" if (! defined($sort));	# default by address
 
   my @ordering = split(/,/, $sort);
   while (@ordering) {
     my $order = pop @ordering;
-    if ($order eq 'name' || $order eq 'sitename') {
-      @row_data = sort { $a->{site_name} cmp $b->{site_name} } @row_data;
+    if ($order eq 'name' || $order eq 'devicename') {
+      @row_data = sort { $a->{device_name} cmp $b->{device_name} } @row_data;
     } elsif ($order eq 'severe') {
       @row_data = sort { $a->{severity} cmp $b->{severity} } @row_data;
     } elsif ($order eq 'varname') {
       @row_data = sort { $a->{var_name} cmp $b->{var_name} } @row_data;
-    } elsif ($order eq 'siteaddr') {
-      @row_data = sort { $a->{site_addr} cmp $b->{site_addr} } @row_data;
+    } elsif ($order eq 'deviceaddr') {
+      @row_data = sort { $a->{device_addr} cmp $b->{device_addr} } @row_data;
     } elsif ($order eq 'varvalue') {
       @row_data = sort { $a->{var_value} cmp $b->{var_value} } @row_data;
     } elsif ($order eq 'monitor') {
@@ -636,32 +636,32 @@ sub print_row {
   my @rowcolor = ("#FFFFcc", "#D8D8D8");	# alternating row colors
   my $action   = $views[$view2severity{$view}];
 
-  my $update = ($updates{"$ev->{site_name}:$ev->{site_addr}:$ev->{var_name}"} 
+  my $update = ($updates{"$ev->{device_name}:$ev->{device_addr}:$ev->{var_name}"} 
 		or '');
   $update = "OLD DATA" if ($ev->{state} & $n_OLDDATA);
 
-  #if ($update eq "") {$update = $updates{"$ev->{site_name}:$ev->{site_addr}"}; }
-  #if ($update eq "") {$update = $updates{"$ev->{site_name}"}; }
+  #if ($update eq "") {$update = $updates{"$ev->{device_name}:$ev->{device_addr}"}; }
+  #if ($update eq "") {$update = $updates{"$ev->{device_name}"}; }
 
   # hide if Critical display
   return if $update =~ /^\(H\)/ && $action eq 'Critical';
 
   my $restore_url = $cgimode ? "$my_url" : "${baseurl}/${view}.html";
-  my $siteHREF = "<A HREF=\"$snipsweb_cgi?displaylevel=$action";
-  $siteHREF .= "&sitename=$ev->{site_name}&siteaddr=$ev->{site_addr}";
-  $siteHREF .= "&variable=$ev->{var_name}&sender=$ev->{sender}";
-  $siteHREF .= "&command=Updates&restoreurl=$restore_url\">";
-  # $siteHREF = uri_escape($siteHREF);
-  $siteHREF =~ s/\+/$escapes{'+'}/g;	# + has special meaning in URLs
+  my $deviceHREF = "<A HREF=\"$snipsweb_cgi?displaylevel=$action";
+  $deviceHREF .= "&devicename=$ev->{device_name}&deviceaddr=$ev->{device_addr}";
+  $deviceHREF .= "&variable=$ev->{var_name}&sender=$ev->{sender}";
+  $deviceHREF .= "&command=Updates&restoreurl=$restore_url\">";
+  # $deviceHREF = uri_escape($deviceHREF);
+  #$deviceHREF =~ s/\+/$escapes{'+'}/g;	# + has special meaning in URLs?
   if ($max_table_rows == -1 || $prefmt == 1) {
-    # need to put the href in front of the sitename, but we dont want
-    # the sitename to be prepended with underlined blanks. i.e. convert
-    #   '<a href="xx">   site</a>'  INTO  '  <a href="xx">site</a>'
-    my $site = sprintf "%-14.14s", $ev->{site_name}; # printing size
-    $site =~ s|(\S+)|$siteHREF$1</a>| ;
+    # need to put the href in front of the devicename, but we dont want
+    # the devicename to be prepended with underlined blanks. i.e. convert
+    #   '<a href="xx">   device</a>'  INTO  '  <a href="xx">device</a>'
+    my $device = sprintf "%-14.14s", $ev->{device_name}; # printing size
+    $device =~ s|(\S+)|$deviceHREF$1</a>| ;
     printf "%4d %1.1s  %s %-15.15s  %12.12s= %8lu  %02d/%02d %02d:%02d %-12s %s\n",
-      $entry_count, $views[$ev->{severity}], $site,
-      $ev->{site_addr}, $ev->{var_name}, $ev->{var_value},
+      $entry_count, $views[$ev->{severity}], $device,
+      $ev->{device_addr}, $ev->{var_name}, $ev->{var_value},
       $ev->{mon},$ev->{day},$ev->{hour},$z1[$ev->{min}], $ev->{sender}, 
       $update;
     return;
@@ -682,24 +682,24 @@ sub print_row {
   $tdend .= "<img src=\"${emptyimg}\" alt=\"&nbsp;\"></td>\n";
 
   ## begin the row of data
-  # 	ser-no  severity  sitename  address  variable+value
+  # 	ser-no  severity  devicename  address  variable+value
   print " <TR bgcolor=\"$rowcolor[$entry_count % 2]\">\n";
   print "   <td $ifnewbg>";
-  if ($ADMINMODE) { print "$siteHREF"; }
+  if ($ADMINMODE) { print "$deviceHREF"; }
   print "<img src=\"$level_imgs[$ev->{severity}]\" alt=\"\" border=\"0\">";
   if ($ADMINMODE) { print "</a>"; }
   print $tdend;
 
-  my $sitename = $ev->{site_name};
+  my $devicename = $ev->{device_name};
   if ($ADMINMODE) {
-    $siteHREF =~ s/command\=Updates/command\=SiteHelp/;  # change the command
-    $sitename = "$siteHREF" . "$ev->{site_name}" . "</a>";
+    $deviceHREF =~ s/command\=Updates/command\=DeviceHelp/;  # change the command
+    $devicename = "$deviceHREF" . "$ev->{device_name}" . "</a>";
   }
   print <<EoRow ;
     $tdstart $entry_count $tdend
     $tdstart $views[$ev->{severity}]  $tdend
-    $tdstart $sitename $tdend
-    $tdstart $ev->{site_addr} $tdend
+    $tdstart $devicename $tdend
+    $tdstart $ev->{device_addr} $tdend
 
     <td nowrap align=right class="data"> 
        &nbsp; $ev->{var_name}= $ev->{var_value} &nbsp; $tdend
@@ -778,7 +778,7 @@ sub print_footer {
 # confusion should that device go down at a later date.
 
 sub remove_updates_entry {
-  my ($sitename, $ipaddr, $varname) = @_;
+  my ($devicename, $ipaddr, $varname) = @_;
 
   open (SFILE, "< $updatesfile") || return; 
 
@@ -794,7 +794,7 @@ sub remove_updates_entry {
       last;
     }
     if ($_ == 3) {
-      print STDERR "Could not flock $updatesfile, cannot remove entry $sitename\n";
+      print STDERR "Could not flock $updatesfile, cannot remove entry $devicename\n";
       return;
     }
     sleep 1;
@@ -804,8 +804,8 @@ sub remove_updates_entry {
   {
     # skip comments and blank lines
     if (/^\s*\#/ || /^\s*$/) { print SFILE; next; }
-    print "$sitename:$ipaddr:$varname<br>\n" if $debug;
-    next if /^$sitename\:$ipaddr\:$varname/; # dont write out, delete
+    print "$devicename:$ipaddr:$varname<br>\n" if $debug;
+    next if /^$devicename\:$ipaddr\:$varname/; # dont write out, delete
     print "not removed<P>\n" if $debug;
     
     print SFILE;
