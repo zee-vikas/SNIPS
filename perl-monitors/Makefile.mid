@@ -31,7 +31,7 @@ all:	snmpprogs
 	@for f in $(PROGS) $(CONF) ; do \
 	  if [ -f $$f ]; then \
 	   echo "  $$f" | tr -d '\012' ;\
-	   sed -e '1s|^#!/.*/perl|#!$(PERL)|' \
+	   sed -e '1s|^#!/.*/perl.*|#!$(PERL)|' \
 		-e 's#^\(\ *$$snipsroot\ *=\ *\)\"\(.*\)\"\(.*SET_THIS.*\)#\1 "$(ROOTDIR)" \3#' \
 		-e 's#^\(\ *$$snipsroot\ *=\ *\)q(\(.*\))\(.*SET_THIS.*\)#\1 q\($(ROOTDIR)\) \3#' \
 		-e 's#^\($$ping\ *=\ *\)\"\(.*\)\"\(.*SET_THIS.*\)#\1 "$(PING)" \3#' \
