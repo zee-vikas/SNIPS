@@ -47,7 +47,7 @@ sed:
 	done ;\
 	for f in $(PERLSCRIPTS) ; do \
 	   echo " $$f" | tr -d '\012' ;\
-	   sed  -e '1s|^#!/.*/perl|#!$(PERL)|' \
+	   sed  -e '1s|^#!/.*/perl.*|#!$(PERL)|' \
 		-e 's#^\(\ *$$snipsroot\ *=\ *\)\"\(.*\)\"\(.*SET_THIS.*\)#\1 "$(ROOTDIR)" \3#' \
 		-e 's#^\(\ *$$snipsroot\ *=\ *\)q(\(.*\))\(.*SET_THIS.*\)#\1 q\($(ROOTDIR)\) \3#' \
 		-e 's|^\($$email_program\ *=\ *\)\"\(.*\)\"\(.*SET_THIS.*\)|\1 "$(MAIL)" \3|' \
