@@ -1,10 +1,7 @@
 # $Id$
 #
 
-# Need the locations of ROOTDIR, LOGHOST, PERL & PING
-# We also replace the value of $event_t from show_struct_sizes
-# by using EVENTsTR
-#LOGHOST = @LOGHOST@
+# Need the locations of ROOTDIR, PERL & PING
 #PERL =	@PERL@
 PING = @PING@
 
@@ -18,34 +15,26 @@ CMUSNMP =	$(SRCDIR)/cmu-snmp
 #
 PROGS = apcmon armon bgpmon bpmon ciscomon modemmon novellmon nrmon \
 	hostmon hostmon-collector hostmon-osclients/hostmon-client \
-	snipsrrd.pl smbmon sqlmon snmpmon snmpmon-collector snmpgeneric \
+	smbmon sqlmon snmpmon snmpmon-collector snmpgeneric \
 	syslogmon upsmon rcisco testlog
 
+# to create init files to start/stop programs
 INITFILES = apcmon armon bgpmon bpmon ciscomon modemmon novellmon nrmon \
 		hostmon smbmon sqlmon snmpmon snmpgeneric syslogmon upsmon
 
 CONF = snipsperl.conf
 
-all:	snmpprogs show_snips_struct_sizes
+all:	snmpprogs
 	@echo "SNIPS PERL monitors"
-	@echo " Doing substitutions for PERL, ROOTDIR, PIDDIR, SNIPS_LOGHOST, PING on: "
-	@EVENTsTR="`../utility/show_snips_struct_sizes | tail -1`"; \
-	 DATAvER="`../utility/show_snips_struct_sizes | awk '/^DATA_VERSION/ {print $$NF}'`"; \
-	 for f in $(PROGS) $(CONF) ; do \
+	@echo " Doing substitutions for PERL, ROOTDIR, PING on: "
+	@for f in $(PROGS) $(CONF) ; do \
 	  if [ -f $$f ]; then \
 	   echo "  $$f" | tr -d '\012' ;\
 	   sed -e '1s|^#!/.*/perl|#!$(PERL)|' \
 		-e 's#^\(\ *$$snipsroot\ *=\ *\)\"\(.*\)\"\(.*SET_THIS.*\)#\1 "$(ROOTDIR)" \3#' \
-		-e 's#^\(\ *$$piddir\ *=\ *\)\"\(.*\)\"\(.*SET_THIS.*\)#\1 "$(PIDDIR)" \3#' \
-		-e 's#^\($$SNIPS_LOGHOST\ *=\ *\)\"\(.*\)\"\(.*SET_THIS.*\)#\1 "$(LOGHOST)" \3#' \
+		-e 's#^\(\ *$$snipsroot\ *=\ *\)q(\(.*\))\(.*SET_THIS.*\)#\1 q\($(ROOTDIR)\) \3#' \
 		-e 's#^\($$ping\ *=\ *\)\"\(.*\)\"\(.*SET_THIS.*\)#\1 "$(PING)" \3#' \
-		-e 's#^\($$RRD_DEFINED\ *=\ *\)\"\(.*\)\"\(.*SET_THIS.*\)#\1 "$(RRDCFLAGS)" \3#' \
-		-e 's#^\($$RRD_DBDIR\ *=\ *\)\"\(.*\)\"\(.*SET_THIS.*\)#\1 "$(RRD_DBDIR)" \3#' \
-		-e 's#^\($$RRDLIBDIR\ *=\ *\)\"\(.*\)\"\(.*SET_THIS.*\)#\1 "$(RRDLIBDIR)" \3#' \
-		-e 's#^\($$DATA_VERSION\ *=\ *\)\(.*\)\(;.*SET_THIS.*\)#\1 @DATAvER@ \3#' \
-		-e "s/@DATAvER@/$$DATAvER/" \
-		-e 's#^\($$event_t\ *=\ *\)\"\(.*\)\"\(.*SET_THIS.*\)#\1 "@EVENTsTR@" \3#' \
-		-e "s/@EVENTsTR@/$$EVENTsTR/" \
+		-e 's#^\($$ping\ *=\ *\)q(\(.*\))\(.*SET_THIS.*\)#\1 q\($(PING)\) \3#' \
 		$$f >$$f.seds ;\
 	 fi ;\
 	done ;\
@@ -66,27 +55,28 @@ snmpprogs:
 	  exit 1 ;\
 	 fi
 
-show_snips_struct_sizes:
-	@cd ../utility ; make $@
-
 # ideally hostmon-osclients/ need not go into the BINDIR, but we are
 # putting it all there for now.
 install:
 	-@[ -d $(BINDIR)/hostmon-osclients ] || mkdir $(BINDIR)/hostmon-osclients
-	-@for f in hostmon-osclients/* ; do \
-	   $(INSTALL) -c -m 755 $$f $(BINDIR)/hostmon-osclients/ ;\
+	-@echo "Installing files in $(BINDIR)/hostmon-osclients" ;\
+	  for f in hostmon-osclients/* ; do \
+	   if [ -f $$f ]; then \
+	     $(INSTALL) -c -m 755 $$f $(BINDIR)/hostmon-osclients/ ;\
+	   fi \
 	  done
-	-@for f in $(PROGS) ; do \
-	   $(INSTALL) -c -m 755 $$f.seds $(BINDIR)/$$f ;\
-	 done
+	-@echo "Installing perl monitors under $(BINDIR)" ;\
+	  for f in $(PROGS) ; do \
+	    $(INSTALL) -c -m 755 $$f.seds $(BINDIR)/$$f ;\
+	  done
 	-@for f in $(CONF) ; do \
 	   if [ ! -f $(ETCDIR)/$$f ]; then \
-		$(INSTALL) -c -m 755 $$f.seds $(ETCDIR)/$$f ;\
+		$(INSTALL) -c -m 644 $$f.seds $(ETCDIR)/$$f ;\
 	   fi \
 	 done
-	@$(INSTALL) -c -m 755 $(CMUSNMP)/snmpapps/snmpwalk $(BINDIR)/
-	@$(INSTALL) -c -m 755 $(CMUSNMP)/snmpapps/snmpget  $(BINDIR)/
-	@$(INSTALL) -c -m 444 $(CMUSNMP)/mib-v2.txt $(ETCDIR)/
+	$(INSTALL) -c -m 755 $(CMUSNMP)/snmpapps/snmpwalk $(BINDIR)/
+	$(INSTALL) -c -m 755 $(CMUSNMP)/snmpapps/snmpget  $(BINDIR)/
+	$(INSTALL) -c -m 444 $(CMUSNMP)/mib-v2.txt $(ETCDIR)/
 	@if [ -f $(ETCDIR)/mibII.txt ]; then \
 		mv $(ETCDIR)/mibII.txt $(ETCDIR)/mibII.txt.old ;\
 	 fi 

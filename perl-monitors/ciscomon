@@ -108,7 +108,7 @@ sub readconf {
 
   open(CONFIG,"<$s_configfile")||die("Couldn't find $s_configfile, exiting");
   my $datafd = open_datafile($s_datafile, "w");
-  # alter_event($event, $s_sender, undef, undef, $varname, $varunits);
+  # alter_event($event, $s_sender, undef, undef, undef, $varname, $varunits);
 
   undef @items;
   undef %variables;
@@ -158,7 +158,7 @@ sub readconf {
 
       push(@items, $item);
       my ($name, $ip) = split(/\t/, $item);
-      alter_event($event, $s_sender, $name, $ip, $vname{$var}, $vunits{$var});
+      alter_event($event, $s_sender, $name, $ip, undef, $vname{$var}, $vunits{$var});
       write_event($datafd, $event);
       next;
     }

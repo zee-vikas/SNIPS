@@ -75,7 +75,7 @@ sub readconf {
   undef @items; undef %wlevel; undef %elevel; undef %clevel;
   open(CONFIG,"<$s_configfile")||die("Couldn't find $s_configfile, exiting");
   my $datafd = open_datafile($s_datafile, "w");
-  alter_event($event, $s_sender, undef, undef, $varname, $varunits);
+  alter_event($event, $s_sender, undef, undef, undef, $varname, $varunits);
 
   while(<CONFIG>)
   {
@@ -95,7 +95,7 @@ sub readconf {
       my $item="$1\t$2" ;		# the name and address
       ($wlevel{$item}, $elevel{$item}, $clevel{$item}) = ($3, $4, $5);
       push(@items,$item);
-      alter_event($event, undef, $1, $2, undef, undef);
+      alter_event($event, undef, $1, $2, undef, undef, undef);
       write_event($datafd, $event);
       next;
     }

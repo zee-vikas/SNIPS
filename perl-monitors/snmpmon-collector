@@ -7,9 +7,10 @@
 # the snmp data from the various devices and stores it in /tmp/snmpmon_data.
 # 'snmpmon' then processes this data.
 #
-# AUTHOR:   Vikas Aggarwal, vikas@naya.com
+# AUTHOR:
+#	Vikas Aggarwal, vikas@navya_.com
 #
-#	Copyright 1994 Vikas Aggarwal, vikas@navya_.com
+#	Copyright 1994-2001, Netplex Technologies, Inc.
 #
 ######
 # Program to poll SNMP variables from various devices. Needs configuration

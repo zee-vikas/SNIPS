@@ -66,7 +66,7 @@ if (defined $event) {
 }
 else {
   $event = new_event();
-  alter_event($event, $sender, $host, $address, $varname, $varunits);
+  alter_event($event, $sender, $host, $address, undef, $varname, $varunits);
   write_event($datafd, $event);
 }
 

@@ -120,7 +120,7 @@ sub readconf {
   undef @items;
   open(CONFIG,"<$s_configfile")||die("Couldn't find $s_configfile, exiting");
   my $datafd = open_datafile($s_datafile, "w");
-  alter_event($event, $s_sender, undef, undef, $varname, $varunits);
+  alter_event($event, $s_sender, undef, undef, undef, $varname, $varunits);
 
   while(<CONFIG>)
   {
@@ -144,7 +144,7 @@ sub readconf {
       my ($name, $type) = ($1, $2);
       push (@items, "$name\t$type");	# start index with 0, not 1
       my $stype = "$type (" . $tname{$type} . ")";	# textual description
-      alter_event($event, undef, $name, $stype, undef, undef);
+      alter_event($event, undef, $name, $stype, undef, undef, undef);
       write_event($datafd, $event);
       next;
     }

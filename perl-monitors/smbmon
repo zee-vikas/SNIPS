@@ -125,7 +125,7 @@ sub readconf {
   undef @items; %routers = ();
   open(CONFIG,"<$s_configfile")||die("Couldn't find $s_configfile, exiting");
   my $datafd = open_datafile($s_datafile, "w");
-  alter_event($event, $s_sender, undef, undef, $varname, $varunits);
+  alter_event($event, $s_sender, undef, undef, undef, $varname, $varunits);
 
   while(<CONFIG>) {
     ++$lineno;
@@ -147,10 +147,10 @@ sub readconf {
 	$_ = "0$_" unless /^[\da-f][\da-f]/i;
 	$_ .= '/u' unless m:/:;
 	tr/A-Z/a-z/;
-	push(@items,"$name\t$address\t$_");	# start index from 0, not 1
-	if (defined($tname{$_})) { $stype = "$name" . "/" ."$tname{$_}" ; }
-	else { $stype = "$name" . "/" . "$_"; }
-	alter_event($event, undef, $stype, $address, undef, undef);
+	$stype = $_;
+	push(@items, "$name\t$address\t$stype");  # starting index from 0
+	$stype = "$tname{$stype}" if (defined($tname{$stype}));
+	alter_event($event, undef, $name, $address, $stype, undef, undef);
 	write_event($datafd, $event);
       }	# foreach
       $routers{"$name\t$address"}++;

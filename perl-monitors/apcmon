@@ -167,7 +167,7 @@ sub readconf {
        $wlevel[$count], $elevel[$count], $clevel[$count]) =
 	 ($1, $2, $3, $4, $5, $6);
 
-      alter_event($event, 'apcmon', $ups_name, $ups_name,
+      alter_event($event, 'apcmon', $ups_name, $ups_name, undef,
 		  $varname[$count], $varunits[$count]);
       write_event($datafd, $event);
       next;
@@ -181,7 +181,7 @@ sub readconf {
   ++$count;
   $varname[$count] = "UPSdata";
   $varunits[$count] = "Avail";
-  alter_event($event, $s_sender, $ups_name, $ups_name,
+  alter_event($event, $s_sender, $ups_name, $ups_name, undef,
 	      $varname[$count], $varunits[$count]);
   write_event($datafd, $event);
 

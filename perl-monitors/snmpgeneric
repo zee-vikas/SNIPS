@@ -83,7 +83,7 @@ sub readconf  {
 
   open(CONFIG,"<$s_configfile")||die("Couldn't find $s_configfile, exiting");
   my $datafd = open_datafile($s_datafile, "w");
-  alter_event($event, $s_sender, undef, undef, undef, $varunits);
+  alter_event($event, $s_sender, undef, undef, undef, undef, $varunits);
   undef @deviceip; undef @oid; undef @comp ;
   undef @wlevel; undef @elevel; undef @clevel;
 
@@ -108,7 +108,7 @@ sub readconf  {
       my ($ip, $port) = split(/:/, $2, 2);
       ($deviceip[$count] , $oid[$count] , $community[$count]) = ($ip, $3, $5);
       ($wlevel[$count] , $elevel[$count] , $clevel[$count]) = ($6, $7, $8);
-      alter_event($event, undef, $1, $ip, $4, undef);
+      alter_event($event, undef, $1, $ip, undef, $4, undef);
       write_event($datafd, $event);
       next;
     }
@@ -120,7 +120,7 @@ sub readconf  {
       ($deviceip[$count] , $oid[$count] , $community[$count]) = ($ip, $3, $5);
       ($wlevel[$count] , $elevel[$count] , $clevel[$count]) = ($6, $7, $8);
       $comp[$count] = $9;	# comparison regex
-      alter_event($event, undef, $1, $ip, $4, undef);
+      alter_event($event, undef, $1, $ip, undef, $4, undef);
       write_event($datafd, $event);
       next;
     }

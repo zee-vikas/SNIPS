@@ -93,7 +93,7 @@ sub readconf {
   undef @peers; undef @routers;
   open(CONFIG,"<$s_configfile")||die("Couldn't find $s_configfile, exiting");
   my $datafd = open_datafile($s_datafile, "w");
-  # alter_event($event, $s_sender, undef, undef, $varname, $varunits);
+  # alter_event($event, $s_sender, undef, undef, undef, $varname, $varunits);
 
   while(<CONFIG>) {
     ++$lineno;
@@ -334,7 +334,7 @@ sub updatepeers {
 	  print "$0: initializing: $name:$ipref ($asref) $peerhostname\n";
         $asref =~ s/^0+//;
 	alter_event($event, $s_sender, "$asref:$peerhostname", $ipref,
-		    "BGP/$name", $varunits);
+		    undef, "BGP-$name", $varunits);
 	write_event($datafd, $event);
       } # if ($exists)
     }   # foreach $buffer (@BUFFERS)
@@ -380,8 +380,8 @@ sub initializepeers {
 
     $debug && print "$0: initializing: $peerhostname ($rname:$peer_ip)\n";
     $peerhostname = "$asref:$peerhostname" if ($asref);
-    alter_event($event, $s_sender, $peerhostname, $peer_ip,
-		"BGP/$rname", $varunits);
+    alter_event($event, $s_sender, $peerhostname, $peer_ip, undef,
+		"BGP-$rname", $varunits);
     write_event($datafd, $event);
   }     # foreach $peer
 
