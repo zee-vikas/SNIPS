@@ -71,12 +71,56 @@ Change Log</h1>
 
 <h3>Release Notes</h3>
 
-<h4><u>snips v1.2<i>(Sep 2001)</i></u></h4>
+<h4><u>snips v1.2<i>(Jan 2002)</i></u></h4>
 
 <p>Minor release, primarily bug fixes.</p>
 
     <blockquote>
       <dl>
+	<dt>snipsweb.cgi , rrdgraph.cgi</dt>
+	<dd>grep while comparing @OK_REFERER should have been case
+		insensitive (md@lf.net)
+	</dd>
+	<dt>lib/event_utils.c</dt>
+	<dd>Bug in calc_status()- was returning critical threshold
+		on warning (William.Dorfmann@kesoftware.com) <br>
+	    Also was not handling the case where thresholds were
+		  all equal (marya@st.jip.co.jp)
+	</dd>
+	<dt>genweb.cgi</dt>
+	<dd>eventime should have been eventtime. Caused no-sound
+		(allan.magmanlac@nrns.ca). Also needed to convert
+		$neweventAge minutes to seconds (shura@korus.isp.ru)
+	</dd>
+	<dt>snmpgeneric</dt>
+	<dd>Was not calling close_datafile() at end (david.cole@bigfoot.com)
+	</dd>
+	<dt>logstats.pl</dt>
+	<dd>Fixed parsing (William.Dorfmann@kesoftware.com and 
+		russell@loosenut.com)
+	</dd>
+	<dt>rrdgraph.cgi</dt>
+	<dd>Added vertical labels to the graphs (peiffer@nts.umn.edu)
+	</dd>
+	<dt>beep_oncall</dt>
+	<dd>New version from peiffer@nts.umn.edu
+	</dd>
+	<dt>snmpmon-collector</dt>
+	<dd>Patch for div by zero in procdata_router().
+		(darin.davis@callisma.com) <br>
+	    doping() subroutine of snmpmon-collector had the ping packet
+		  size hardcoded at 100 bytes ("open (CMD, "$ping -s 100
+		  but normal users aren't allowed to resize ping
+		  packets on Linux. Now does not do a doping()
+		  (mmoore@novator.com)
+	</dd>
+	<dt>snmpgeneric</dt>
+	<dd>Patch for not showing variable name in alter_event()
+		(erm@world.std.com)
+	</dd>
+	<dt>sqlmon</dt>
+	<dd>alter_event() was missing a field.
+	</dd>
 	<dt>multiping</dt>
 	<dd>multiping timings were skewed by about 200ms or so
 	   because it was sleeping for 50ms (INTERPKT_GAP) between
