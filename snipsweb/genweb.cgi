@@ -500,7 +500,7 @@ EOT2
     print <<EOT2a;
       <td nowrap align=center class="data"> &nbsp; <b>$field</b>  &nbsp; </td>
       <td bgcolor="#AAAAAA" width=1>
-	  <img src=\'$emptyimg\' alt="."></td>  <!-- thin vertical divider -->
+	  <img src="$emptyimg" alt="."></td>  <!-- thin vertical divider -->
 EOT2a
   }	# foreach $field
   
