@@ -1,5 +1,7 @@
 package SNIPS;
 
+# $Header$
+
 use strict;
 use vars qw($VERSION @ISA @EXPORT @EXPORT_OK);
 use vars qw($opt_a $opt_d $opt_f $opt_o $opt_x);
@@ -293,41 +295,17 @@ sub poll_sites {
 
 #### To access the C variables  #####
 #
-# Cannot use Autoloader if putting another package in the
-# same .pm file. These functions call XSUB routines.
+# Cannot use Autoloader if putting another package in the same .pm file.
+# The 'tie' function calls the functions. The FETCH and STORE functions
+# are in the .xs file. Somehow, the TIESCALAR function is not working in
+# the .xs file.
 package SNIPS::globals;
-use Carp;
 
 sub TIESCALAR {
   my $class = shift;
   my $var = shift;	# debug or dorrd or...
   # print "TIESCALAR, blessing $var in class $class\n";
   return bless \$var, $class;
-}
-
-sub FETCH {
-  my $self = shift;
-  confess "wrong type" unless ref $self;
-  croak "usage error" if @_;
-  my $var = $$self;
-  my $value;
-  local ($!) = 0;
-  $value = SNIPS::globals::_FETCH($var);
-  if ($!) { croak "_FETCH failed for $var: $!"; }
-  return $value;
-}
-
-sub STORE {
-  my $self = shift;
-  confess "wrong type" unless ref $self;
-  my $newval = shift;
-  croak "usage error" if @_;
-  my $var = $$self;
-  # print "Trying to STORE ", $$self, " with value $newval\n";
-  unless ( defined SNIPS::globals::_STORE($var, $newval) ) {
-    confess "Could not set $var: $!";
-  }
-  return $newval;
 }
 
 # Autoload methods go after =cut, and are processed by the autosplit program.
