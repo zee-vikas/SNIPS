@@ -820,10 +820,10 @@ foreach ('TERM', 'HUP', 'INT', 'KILL', 'QUIT') {
 while (1) {
   foreach my $dev (@devices) {
     next if ($dev =~ /^\s*$/);
-    if (&doping($dev) <= 0) {	# device is dead
-      print STDERR "Host $dev not responding to ping, skipping\n" if ($debug);
-      next;
-    }
+#    if (&doping($dev) <= 0) {	# device is dead
+#      print STDERR "Host $dev not responding to ping, skipping\n" if ($debug);
+#      next;
+#    }
     my $dfile = "$TMPDATADIR" . "/$dev" . ".snmpmon";
     my $d = &toindex($dev) ;
     $debug && print STDERR "(debug) Monitoring device $dev\n";
