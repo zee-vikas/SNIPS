@@ -19,6 +19,10 @@
 
 /*
  * $Log$
+ * Revision 2.3  2001/08/25 16:35:37  vikas
+ * Now recieves packets during the interpacket delay in mpinger (earlier
+ * only processed one incoming packet). Bug and patch by cbell@junknet.com
+ *
  * Revision 2.2  2001/07/11 03:39:49  vikas
  * Needed include inet.h
  *
@@ -123,8 +127,7 @@ main(argc, argv)
 {
   extern int      errno, optind;
   extern char    *optarg;
-  struct timeval  timeout, intvl;
-  struct timeval  now, lastping;
+  struct timeval  intvl;
   struct protoent *proto;
   register int    i;
   int             ch, hold, preload, dostdin, almost_done = 0;
@@ -337,74 +340,31 @@ main(argc, argv)
   }
 
   mpinger();			/* send the first ping */
-  gettimeofday(&lastping, NULL);	/* time of last ping */
 
   while (!finish_up) {
-    struct sockaddr_in from;
-    register int    cc;
-    int             fromlen;
-    int		    n;
-    fd_set	    rfds;
 
-    FD_ZERO(&rfds);
-    FD_SET(s, &rfds);
-    gettimeofday(&now, NULL);
-
-    timeout.tv_sec  = lastping.tv_sec + intvl.tv_sec - now.tv_sec;
-    timeout.tv_usec = lastping.tv_usec + intvl.tv_usec - now.tv_usec;
-    while (timeout.tv_usec < 0) {
-      timeout.tv_usec += 1000000;
-      timeout.tv_sec--;
+    /* recieve packets while waiting for next batch of pings */
+    if (recv_packets(s, &intvl) < 0) {	/* fatal error */
+      break;	/* out of while() */
     }
-    while (timeout.tv_usec >= 1000000) {
-      timeout.tv_usec -= 1000000;
-      timeout.tv_sec++;
-    }
-    if (timeout.tv_sec < 0)
-      timeout.tv_sec = timeout.tv_usec = 0;
 
-    /* fprintf(stderr,
-       "timeout = %ld.%ld\n", timeout.tv_sec, timeout.tv_usec); /*  */
-
-    n = select(s + 1, &rfds, (fd_set *)NULL, (fd_set *)NULL, &timeout);
-    if (n < 0)
-      continue;		/* interrupted, so wait again */
-
-    if (n == 1)
-    {		/* recieve and print packet */
-      fromlen = sizeof(from);
-      if ((cc = recvfrom(s, (char *) packet, packlen, 0,
-			 (struct sockaddr *) &from, &fromlen)) < 0) {
-	if (errno == EINTR)
-	  continue;
-	perror("ping: recvfrom");
-	continue;
+    if (!npackets || ntransmitted < npackets)
+      mpinger();
+    else
+    {
+      if (almost_done)
+	break;		/* second time around */
+      almost_done = 1;
+      intvl.tv_usec = 0;
+      if (tmax > 0 || nreceived > 0)
+      {			/* have recieved some packets back */
+	intvl.tv_sec = 2 * tmax / 1000;
+	if (!intvl.tv_sec)
+	  intvl.tv_sec = 1;
       }
-      pr_pack((char *) packet, cc, &from);
-    }	/* if (n == 1) */
-
-    if (n == 0 || options & F_FLOOD)
-    {			/* timed out or flood mode */
-      if (!npackets || ntransmitted < npackets)
-	mpinger();
       else
-      {
-	if (almost_done)
-	  break;		/* second time around */
-	almost_done = 1;
-	intvl.tv_usec = 0;
-	if (tmax > 0 || nreceived > 0)
-	{			/* have recieved some packets back */
-	  intvl.tv_sec = 2 * tmax / 1000;
-	  if (!intvl.tv_sec)
-	    intvl.tv_sec = 1;
-	}
-	else
-	  intvl.tv_sec = MAXWAIT + 1;
-      }
-      gettimeofday(&lastping, NULL);
-
-    }	/* if (n == 0 && ... */
+	intvl.tv_sec = MAXWAIT + 1;
+    }
 
   }	/* end: while() */
 
@@ -453,49 +413,21 @@ stopit()
 mpinger()
 {
   int	i;
+  struct timeval interpktdelay;
+
+  interpktdelay.tv_sec = 0;
+  interpktdelay.tv_usec = (INTERPKTGAP * 1000);	/* in millisecs */
 
   for (i = 0; i < numsites; i++)
   {
-    int             fromlen;
-    register int    cc;
-    struct sockaddr_in from;
-    struct timeval timeout;
-    fd_set	fds;
-
     real_pinger(i);
 
-    timeout.tv_sec = 0;
-    timeout.tv_usec = (INTERPKTGAP * 1000);	/* in millisecs */
-    FD_ZERO(&fds);
-    FD_SET(s, &fds);
+    if (recv_packets(s, &interpktdelay) < 0)
+      continue;	/* ignore errors */
 
-    if (select(s + 1, &fds, (fd_set *)NULL, (fd_set *)NULL, &timeout) < 1)
-      continue;		/* timeout or interrupted by alarm */
-
-    /*
-     * Here if there is something to read from the socket
-     */
-    fromlen = sizeof(from);
-    if ((cc = recvfrom(s, (char *) packet, packlen, 0,
-                (struct sockaddr *) &from, &fromlen)) < 0)
-    {
-	if (errno == EINTR)	/* interrupted, forget processing this time */
-	  continue;
-	perror("ping: recvfrom in mpinger");	/* some other error */
-	continue;
-    }
-    else  /* process good response, then force a delay */
-    {
-	pr_pack((char *) packet, cc, &from);
-
-	timeout.tv_sec = 0;
-	timeout.tv_usec = (INTERPKTGAP * 1000);	/* in millisecs */
-	select (0, (fd_set *)NULL, (fd_set *)NULL, (fd_set *)NULL, &timeout); 
-    }
   }	/* end:  for(numsites...)  */
 	
   ++ntransmitted;
-
 }
 
 /*
@@ -551,6 +483,94 @@ real_pinger(which)
   if (!(options & F_QUIET) && options & F_FLOOD)
     write(STDOUT_FILENO, &DOT, 1);
 }
+
+/*
+ * Recieve packets for a max of specified timeout interval. Return 0 on
+ * timeout, -1 on some fatal read error from socket.
+ */
+
+recv_packets(rsock, ptimeout)
+  int rsock;			/* socket file descriptor */
+  struct timeval *ptimeout;	/* how long to wait */
+{
+  int	fromlen, cc;
+  struct sockaddr_in  from;
+  struct timeval  timeout, now, start;
+  fd_set       	rfds;
+
+  gettimeofday(&start, NULL);
+
+  while (1)
+  {
+    int n;	/* select return value */
+
+    FD_ZERO(&rfds);
+    FD_SET(rsock, &rfds);
+
+    gettimeofday(&now, NULL);
+
+    timeout.tv_sec =  ptimeout->tv_sec - (now.tv_sec - start.tv_sec);
+    timeout.tv_usec = ptimeout->tv_usec - (now.tv_usec - start.tv_usec);
+
+    while (timeout.tv_usec < 0) {
+      timeout.tv_usec += 1000000;
+      timeout.tv_sec--;
+    }
+    while (timeout.tv_usec >= 1000000) {
+      timeout.tv_usec -= 1000000;
+      timeout.tv_sec++;
+    }
+    if (timeout.tv_sec < 0)
+      timeout.tv_sec = timeout.tv_usec = 0;
+#ifdef DEBUG2
+    fprintf(stderr, "(debug) %s: recv_packets() timeout = %ld.%ld\n", prognm,
+	    timeout.tv_sec, timeout.tv_usec);
+#endif
+
+    if (timeout.tv_sec == 0 && timeout.tv_usec == 0)
+      return (0);
+
+    n = select(rsock + 1, &rfds, (fd_set *)NULL, (fd_set *)NULL, &timeout);
+
+    /* some error */
+    if (n < 0)
+    {
+      if (errno == EINTR)
+	continue;		/* interrupted, so wait again */
+
+      fprintf(stderr, "%s: select() failed on socket %d -", prognm, rsock);
+      perror("");
+      break;	/* fatal error, out of while */
+    }
+
+    /* ready for reading */
+    if (n > 0 && FD_ISSET(rsock, &rfds))	/* recieve and print packet */
+    {
+      fromlen = sizeof(from);
+      if ((cc = recvfrom(rsock, (char *) packet, packlen, 0,
+			 (struct sockaddr *) &from, &fromlen)) < 0)
+      {
+	if (errno == EINTR || errno == EAGAIN)
+	  continue;
+	fprintf(stderr, "%s: recvfrom() on fd %d -", prognm, rsock);
+	perror("");
+	if (errno == EBADF || errno == ENOTSOCK)
+	  break;	/* fatal error, out of while */
+
+	continue;
+      }
+
+      pr_pack((char *) packet, cc, &from);	/* process packet */
+
+    }	/* if (n > 0) */
+
+  }	/* while 1 */
+
+  /* here only upon error */
+  return (-1);
+
+}     /* recv_packets() */
+
 
 /*
  * pr_pack -- Print out the packet, if it came from us.  This logic is
@@ -842,12 +862,14 @@ output_old_style()
     if (dp->nrepeats)
       printf("+%ld duplicates, ", dp->nrepeats);
     if (dp->ntransmitted)
+    {
       if (dp->nreceived > dp->ntransmitted)
 	printf("-- somebody's printing up packets!");
       else
 	printf("%d%% packet loss",
 		      (int) (((dp->ntransmitted - dp->nreceived) * 100) /
 			     dp->ntransmitted));
+    }
     putchar('\n');
     if (dp->nreceived && timing)
       printf("round-trip min/avg/max = %ld/%lu/%ld ms\n",
@@ -881,12 +903,14 @@ output_new_style()
       pr_addr(dp->sockad.sin_addr.s_addr),
       dp->ntransmitted, dp->nreceived, dp->nrepeats,
       (dp->nreceived > dp->ntransmitted) ? '!' : ' ',
-      (int) (((dp->ntransmitted - dp->nreceived) * 100) / dp->ntransmitted));
+      (long) (((dp->ntransmitted - dp->nreceived) * 100) / dp->ntransmitted));
     sent += dp->ntransmitted;
     rcvd += dp->nreceived;
     rpts += dp->nrepeats;
     if (timing)
-      if (dp->nreceived) {
+    {
+      if (dp->nreceived)
+      {
         printf("    %4ld  %4ld  %4ld", dp->tmin,
           dp->tsum / dp->nreceived, dp->tmax);
         if (dp->tmin < tmin)
@@ -896,13 +920,14 @@ output_new_style()
         tsum += dp->tsum;
       } else        
         printf("       0     0     0");
+    }
   }
   printf("\n-----------------------------  ------  ------  ------  ----");
   if (timing)
     printf("    ----  ----  ----");
   if (numsites > 1) {
     printf("\nTOTALS                         %6ld  %6ld  %6ld  %3ld%%",
-      sent, rcvd, rpts, (int) (((sent - rcvd) * 100) / sent));
+      sent, rcvd, rpts, (long) (((sent - rcvd) * 100) / sent));
     if (timing)
     {
       if (rcvd)		/* avoid divide by zero */
@@ -1192,7 +1217,6 @@ fill(bp, patp)
 destrec *dest_malloc()
 {
   destrec *p;
-  int i;
 
   p = (destrec *)malloc(sizeof(destrec));
   if ((p == NULL) || ((p->rcvd_tbl = (char *)malloc(MAX_DUP_CHK / 8)) == NULL))
