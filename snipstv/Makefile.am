@@ -23,5 +23,5 @@ snipstv_SOURCES = 	create_subwins.c  do_filter.c  help_page.c \
 snipstv_LDADD = @CURSESLIB@
 
 install-data-local:
-	ln -s $(bindir)/snipstv  $(bindir)/netconsole
+	[ -r $(bindir)/netconsole ] || ln -s $(bindir)/snipstv  $(bindir)/netconsole
 	$(INSTALL) -m 0444 snipstv-help $ $(DESTDIR)$(prefix)/etc
