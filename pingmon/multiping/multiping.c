@@ -1,24 +1,20 @@
-#ifndef lint
-char            copyright[] =
-"@(#) Copyright (c) 1989 The Regents of the University of California.\n\
- All rights reserved.\n";
-#endif				/* not lint */
+/* $Header$ */
 
-#ifndef lint
-static char     sccsid[] = "@(#)ping.c	5.9 (Berkeley) 5/12/91";
-#endif				/* not lint */
-
-#ifndef lint
-static char rcsid[] = "$Header$" ;
-#endif
-
-/*
- * (Multi) P I N G . C
- * 
+/*+ multiping.c
+ *
+ * Pings multiple sites at once.
+ *
+ *  Copyright 1997	Netplex Technologies Inc., info@netplex-tech.com
+ *
+ * MAINTAINED BY:
+ *	Vikas Aggarwal, vikas@navya_.com
+ *
+ * Derived from "@(#)ping.c	5.9 (Berkeley) 5/12/91";
+ *
  * Using the InterNet Control Message Protocol (ICMP) "ECHO" facility, measure
  * round-trip-delays and packet loss across network paths.
  * 
- * Author -
+ * Original ping Author -
  *      Mike Muuss
  *      U. S. Army Ballistic Research Laboratory
  *      December, 1983
@@ -35,6 +31,12 @@ static char rcsid[] = "$Header$" ;
  *
  *
  * $Log$
+ * Revision 1.11  1997/01/28 11:05:43  vikas
+ * Now stores the index into the destrec[] array in the packet
+ * that is sent (faster and can now handle duplicates).
+ * Added 'defines' for Linux which doesn't have "standard" include
+ * files. Hope it works under Alpha Linux also...
+ *
  * Revision 1.10  1994/12/19 03:38:36  vikas
  * Fixed the inet_ntoa() call.
  *
@@ -43,7 +45,7 @@ static char rcsid[] = "$Header$" ;
  * to stderr instead of to stdout.
  *
  * Revision 1.7  1994/01/03  22:48:31  aggarwal
- * Deleted 'values.h' include. Also forced a delay in pinger() if
+ * Deleted 'values.h' include. Also forced a delay in mpinger() if
  * the first select() returned positive (since it was sending packets
  * out too fast).
  *
@@ -85,7 +87,14 @@ static char rcsid[] = "$Header$" ;
  * Initial revision
  *
  */
+
+#ifndef lint
+static char rcsid[] = "$Id$";
+#endif
+
+#include <sys/types.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <netdb.h>
 #include <unistd.h>
 #include <ctype.h>
@@ -99,16 +108,20 @@ static char rcsid[] = "$Header$" ;
 #include <sys/time.h>
 #include <sys/signal.h>
 
-#include <netinet/in_systm.h>
+#include <netinet/in_systm.h>	/* required for ip.h */
 #include <netinet/in.h>
-#include <netinet/ip.h>
-#include <netinet/ip_icmp.h>
-#include <netinet/ip_var.h>
+#if defined(LINUX) || defined(linux)
+# include "ip.h"
+# include "ip_icmp.h"
+#else
+# include <netinet/ip.h>
+# include <netinet/ip_icmp.h>
+# include <netinet/ip_var.h>	/* define's MAX_IPOPTLEN */
+#endif	/* LINUX */
 
+#define MAIN
 #include "multiping.h"		/* all sorts of nasty #defines */
-#define GLOBALS
-#include "vars.h"
-#undef GLOBALS
+#undef MAIN
 
 int options;			/* F_* options */
 int             max_dup_chk = MAX_DUP_CHK;
@@ -152,9 +165,12 @@ main(argc, argv)
 #endif
 
   prognm = argv[0] ;
-  startup();
+  numsites = 0;
+  datalen = DEFDATALEN;
+  bzero(dest, sizeof(destrec *) * MAXREMOTE);
   preload = 0;
-  datap = &outpack[8 + sizeof(struct timeval)];
+  /* we store the time sent and the index into destrec[] inside pkt */
+  datap = &outpack[8 + sizeof(struct timeval) + sizeof (int)];
   while ((ch = getopt(argc, argv, "tRc:dfh:i:l:np:qrs:v")) != EOF) {
     switch (ch) {
       case 't':
@@ -242,7 +258,8 @@ main(argc, argv)
     fprintf(stderr, "%s: -f and -i are incompatible options.\n", prognm);
     exit(1);
   }
-  if (datalen >= sizeof(struct timeval))	/* can we time transfer */
+  /* can we time transfer ? */
+  if (datalen >= (sizeof(struct timeval) + sizeof(int)))
     timing = 1;
   packlen = datalen + MAXIPLEN + MAXICMPLEN;
   if (!(packet = (u_char *) malloc((u_int) packlen))) {
@@ -253,7 +270,7 @@ main(argc, argv)
     for (i = 8; i < datalen; ++i)
       *datap++ = i;
 
-  ident = (unsigned short)(getpid() & 0xFFFF);
+  ident = (unsigned short)(getpid() & 0xFFFF);	/* convert to short */
 
   if (!(proto = getprotobyname("icmp"))) {
     fprintf(stderr, "%s: unknown protocol icmp.\n", prognm);
@@ -263,7 +280,7 @@ main(argc, argv)
     perror("ping: socket");
     exit(1);
   }
-  hold = 1;
+  hold = 1;	/* use temporarily for setsockopt() */
   if (options & F_SO_DEBUG)
     setsockopt(s, SOL_SOCKET, SO_DEBUG, (char *) &hold, sizeof(hold));
   if (options & F_SO_DONTROUTE)
@@ -298,7 +315,7 @@ main(argc, argv)
   signal(SIGALRM, catcher);
 
   while (preload--)		/* fire off them quickies */
-    pinger();
+    mpinger();
 
   if ((options & F_FLOOD) == 0)
     catcher();			/* start things going */
@@ -315,7 +332,7 @@ main(argc, argv)
      * if select() says something is waiting)
      */
     if (options & F_FLOOD) {
-      pinger();
+      mpinger();
       timeout.tv_sec = 0;
       timeout.tv_usec = 10000;
       fdmask = 1 << s;
@@ -355,7 +372,7 @@ catcher()
   int             waittime;
   int             i;
 
-  pinger();
+  mpinger();
   signal(SIGALRM, catcher);
   if (!npackets || ntransmitted < npackets)
     alarm((u_int) interval);
@@ -407,11 +424,13 @@ real_pinger(which)
 
   CLR(which, icp->icmp_seq % max_dup_chk);
 
-  /* record time at which we sent the packet out */
-  if (timing)
+  /* record time at which we sent the packet out and index into destrec[] */
+  if (timing) {
     gettimeofday((struct timeval *) & outpack[8], (struct timezone *) NULL);
+    bcopy(&which, outpack + 8 + sizeof(struct timeval), sizeof(int));
+  }
 
-  cc = datalen + 8;		/* skips ICMP portion */
+  cc = datalen + 8;		/* skips ICMP pkt portion */
 
   /* compute ICMP checksum here */
   icp->icmp_cksum = in_cksum((u_short *) icp, cc);
@@ -431,7 +450,7 @@ real_pinger(which)
 }
 
 /*
- * pinger -- front end to real_pinger() so that all sites get pinged with
+ * mpinger -- front end to real_pinger() so that all sites get pinged with
  * each invocation of pinger().
  * Need to add a small delay to prevent the kernel overflow from packets.
  * We use 'select' to get small interpkt delays between the ping for each
@@ -440,7 +459,7 @@ real_pinger(which)
  * we do another wait() to force a pause for the INTERPKTGAP time.
  */
 
-pinger()
+mpinger()
 {
   int	i;
 
@@ -470,7 +489,7 @@ pinger()
     {
 	if (errno == EINTR)	/* interrupted, forget processing this time */
 	  continue;
-	perror("ping: recvfrom in pinger");	/* some other error */
+	perror("ping: recvfrom in mpinger");	/* some other error */
 	continue;
     }
     else  /* process good response, then force a delay */
@@ -525,29 +544,35 @@ pr_pack(buf, cc, from)
   /* Now the ICMP part */
   cc -= hlen;
   icp = (struct icmp *) (buf + hlen);
-  if (icp->icmp_type == ICMP_ECHOREPLY) {
-    int             wherefrom;
-    destrec        *dst;
+  if (icp->icmp_type == ICMP_ECHOREPLY)
+  {				/* if ICMP ECHO type */
+    int 	wherefrom;
+    destrec	*dst;
 
     /* first see if this reply is addressed to our process */
     if (icp->icmp_id != ident)
       return;			/* 'Twas not our ECHO */
 
     /* if so, figure out which site it is in the dest[] array */
-    for (wherefrom = 0; wherefrom < numsites; wherefrom++)
-    /* Need to compare the individual fields and not entire structure */
-      if ((dest[wherefrom]->sockad.sin_family == from->sin_family) &&    
-	  (dest[wherefrom]->sockad.sin_port == from->sin_port) &&
-	  (dest[wherefrom]->sockad.sin_addr.s_addr == from->sin_addr.s_addr))
-        break;
-    if (wherefrom >= numsites) {
+    if (timing)	/* easier using buf+hlen instead of icp to access wherefrom */
+      bcopy(buf + hlen + 8 + sizeof(struct timeval), &wherefrom, sizeof(int));
+    if (!timing || wherefrom >= numsites)
+      for (wherefrom = 0; wherefrom < numsites; wherefrom++)
+	/* Need to compare the individual fields and not entire structure */
+	if ((dest[wherefrom]->sockad.sin_family == from->sin_family) &&    
+	    (dest[wherefrom]->sockad.sin_port == from->sin_port) &&
+	    (dest[wherefrom]->sockad.sin_addr.s_addr == from->sin_addr.s_addr))
+	  break;
+    if (wherefrom >= numsites)
+    {
       fprintf(stderr,
-	      "%s: received ICMP_ECHOREPLY from someone we didn't send to!?\n",
-	      prognm);
+	      "%s: received ICMP_ECHOREPLY from someone we didn't send to!?%d\n",
+	      prognm, wherefrom);
       return;
     }
+
     dst = dest[wherefrom];
-/*    icp->icmp_seq;		/* ??? */
+    /*    icp->icmp_seq;		/* ??? */
     ++dst->nreceived;
 
     /* figure out round trip time, check min/max */
@@ -568,12 +593,15 @@ pr_pack(buf, cc, from)
         tmax = triptime;
     }
 
-    /* check for duplicate echoes */
+    /* check for duplicate echoes. If a duplicate, check in case the host
+     * name was repeated on the command line
+     */
     if (TST(wherefrom, icp->icmp_seq % max_dup_chk)) {
       ++dst->nrepeats;
       --dst->nreceived;
       dupflag = 1;
-    } else {
+    }
+    else {
       SET(wherefrom, icp->icmp_seq % max_dup_chk);
       dupflag = 0;
     }
@@ -592,10 +620,12 @@ pr_pack(buf, cc, from)
 	printf(" time=%ld ms", triptime);
       if (dupflag)
 	printf(" (DUP!)");
-      /* check the data */
-      cp = (u_char *) & icp->icmp_data[8];
-      dp = &outpack[8 + sizeof(struct timeval)];
-      for (i = 8; i < datalen; ++i, ++cp, ++dp) {
+      /* check the data. Note data when sent was at  8+time+index */
+      cp = (u_char *) & icp->icmp_data[sizeof(struct timeval) + sizeof(int)];
+      dp = &outpack[8 + sizeof(struct timeval) + sizeof(int)];
+      for (i = sizeof(struct timeval) + sizeof(int);
+	   i < datalen; ++i, ++cp, ++dp)
+      {
 	if (*cp != *dp) {
 	  printf("\nwrong data byte #%d should be 0x%x but was 0x%x",
 	    i, *dp, *cp);
@@ -607,10 +637,11 @@ pr_pack(buf, cc, from)
 	  }
 	  break;
 	}
-      }
-    }
-  } else {
-    /* We've got something other than an ECHOREPLY */
+      }	/* for i < datalen */
+    }	/* if-else options & F_FLOOD */
+  }	/* if ICMP_ECHO */
+  else
+  {		/* We've got something other than an ECHOREPLY */
     if (!(options & F_VERBOSE))
       return;
     printf("%d bytes from %s: ", cc, pr_addr(from->sin_addr.s_addr));
@@ -759,7 +790,7 @@ output_old_style()
 
   for (i = 0; i < numsites; i++) {
     dp = dest[i];
-    printf("--- %s ping statistics ---\n", pr_addr(dp->sockad.sin_addr.s_addr));
+    printf("--- %s ping statistics ---\n",pr_addr(dp->sockad.sin_addr.s_addr));
     printf("%ld packets transmitted, ", dp->ntransmitted);
     printf("%ld packets received, ", dp->nreceived);
     if (dp->nrepeats)
@@ -1115,6 +1146,72 @@ fill(bp, patp)
     printf("\n");
   }
 }
+
+/*
+ * allocates a destrec and initializes its fields
+ */ 
+destrec *dest_malloc()
+{
+  destrec *p;
+  int i;
+
+  p = (destrec *)malloc(sizeof(destrec));
+  if ((p == NULL) || ((p->rcvd_tbl = (char *)malloc(MAX_DUP_CHK / 8)) == NULL))
+  {
+    fprintf(stderr, "multiping: dest_malloc: out of memory\n");
+    exit(1);
+  }
+  bzero(p->rcvd_tbl, MAX_DUP_CHK/8);
+  p->nreceived = p->nrepeats = p->ntransmitted = (char)0;
+  p->hostname[0] = '\0';
+  p->tmax = p->tsum = 0;
+  p->tmin = SHRT_MAX;
+  return p;
+}  
+
+/*
+ * Takes a host name like 'phoenix.princeton.edu' or an IP address
+ * like '128.112.120.1' and creates an entry for that host in the
+ * dest[] array.
+ */
+setup_sockaddr(addr)
+  char *addr;
+{
+  destrec *dst;
+  struct sockaddr_in *to;
+  struct hostent *hp;
+
+  dst = dest_malloc();
+  bzero((char*)&(dst->sockad), sizeof(struct sockaddr_in));
+  to = &dst->sockad;
+  to->sin_family = PF_INET;
+  to->sin_addr.s_addr = inet_addr(addr);
+  if (to->sin_addr.s_addr != (u_int)-1)
+    strcpy(dst->hostname, addr);
+  else {
+    hp = gethostbyname(addr);
+    if (hp == NULL) {
+      fprintf(stderr, "ping: unknown host %s\n", addr);
+      exit(1);
+    }
+    to->sin_family = hp->h_addrtype;
+    bcopy(hp->h_addr, (caddr_t)&to->sin_addr, hp->h_length);
+    strncpy(dst->hostname, hp->h_name, MAXHOSTNAMELEN-1);
+  }
+  dest[numsites++] = dst;
+  if (to->sin_family == PF_INET)
+    printf("PING %s (%s): %d data bytes\n", pr_addr(to->sin_addr.s_addr),
+	   inet_ntoa(to->sin_addr), datalen);
+  else
+    printf("PING %s: %d data bytes", dst->hostname, datalen);
+
+  if (numsites > MAXREMOTE)
+  {
+      fprintf(stderr, "multiping: Error- number of hosts exceeds MAX %d\n",
+	      MAXREMOTE);
+      exit (1);
+  }
+}	/* setup_scokaddr() */
 
 usage()
 {
