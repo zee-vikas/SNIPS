@@ -64,13 +64,15 @@ typedef struct pw_auth_hdr {
   u_char	data[2];
 } AUTH_HDR;
 
-/* radius attributes used in this code */
+/* radius Attributes used in this code */
 #define PW_USER_NAME	1
 #define PW_PASSWORD	2
 #define PW_NAS_ID	4
 #define PW_NAS_PORT_ID	5
 #define PW_SESSION_ID	44
+#define NAS_PORT_TYPE	61
 
+/* Packet types */
 #define PW_AUTHENTICATION_REQUEST	1
 #define PW_AUTHENTICATION_ACK		2
 #define PW_AUTHENTICATION_REJECT	3
