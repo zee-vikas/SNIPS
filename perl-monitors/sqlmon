@@ -21,7 +21,7 @@
 # BEGIN { push (@INC, "blib/arch"); push (@INC, "blib/lib"); }
 
 use strict;
-use vars qw ( $debug $devcount
+use vars qw ( $snipsroot $debug $devcount
 	      @devicename @deviceaddr @maxseverity @varvalue @varthres
 	      @data_source @username @password @query_string
 	    );
@@ -53,7 +53,7 @@ sub readconf {
   open(CONFIG,"<$s_configfile") || die("Couldn't find $s_configfile, exiting");
   my $datafd = open_datafile($s_datafile, "w");
   $event = new_event();
-  alter_event($event, 'sqlmon', undef, undef, 'SQLserver', 'Up');
+  alter_event($event, 'sqlmon', undef, undef, undef, 'SQLserver', 'Up');
 
   while(<CONFIG>) {
     ++$lineno;
