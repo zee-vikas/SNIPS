@@ -243,9 +243,10 @@ sub event2array {
 sub pack_event {
   my (%hevent) = @_;
 
-  return undef if (! defined(%hevent));
-
-  return SNIPS::_pack_event(\%hevent) ;
+  if (%hevent) {
+    return SNIPS::_pack_event(\%hevent) ;
+  }
+  else { return undef; }
 }
 
 ## de-reference hash pointer
