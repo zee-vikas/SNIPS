@@ -10,6 +10,10 @@
 
 /*
  * $Log$
+ * Revision 1.2  2002/01/30 05:40:17  vikas
+ * Updated calc_status() to handle equal thresholds.
+ * Also fixed bug where it was returning the wrong threshold in warning.
+ *
  * Revision 1.1  2001/08/01 23:27:30  vikas
  * tstr() needed to be static in event2strarray(), was causing problems
  * in the perl xs unpack_event() routine.
@@ -158,7 +162,7 @@ int calc_status(val, warnt, errt, critt, crit_is_hi, pthres, pmaxseverity)
   int status = 1;		/* assume UP */
 
   if (crit_is_hi == -1) {	/* set automatically */
-    if (critt > warnt)   crit_is_hi = 1;	/* higher value is critical */
+    if (critt >= warnt)   crit_is_hi = 1;	/* higher value is critical */
     else   crit_is_hi = 0;		/* lower value is critical */
   }
 
@@ -182,7 +186,7 @@ int calc_status(val, warnt, errt, critt, crit_is_hi, pthres, pmaxseverity)
   }
   else if ( (crit_is_hi && val >= warnt) || (crit_is_hi == 0 && val <= warnt) )
   { 
-    if (pthres) *pthres = critt;
+    if (pthres) *pthres = warnt;
     *pmaxseverity = E_WARNING;
   }
   else    
