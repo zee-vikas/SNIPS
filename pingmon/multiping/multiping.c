@@ -35,7 +35,12 @@ static char rcsid[] = "$Header$" ;
  *
  *
  * $Log$
- * Revision 1.6  1993/12/30 01:21:04  aggarwal
+ * Revision 1.7  1994/01/03 22:48:31  aggarwal
+ * Deleted 'values.h' include. Also forced a delay in pinger() if
+ * the first select() returned positive (since it was sending packets
+ * out too fast).
+ *
+ * Revision 1.6  1993/12/30  01:21:04  aggarwal
  * Major change in logic-- now uses 'select' for interpacket delays
  * and uses the time paused for parsing any return packets.
  * Improved performance by a factor of 10:
@@ -79,7 +84,7 @@ static char rcsid[] = "$Header$" ;
 #include <ctype.h>
 #include <errno.h>
 #include <string.h>
-#include <values.h>
+#include <limits.h>		/* for LONG_MAX  */
 
 #include <sys/param.h>
 #include <sys/socket.h>
@@ -114,9 +119,7 @@ int             interval = 1;	/* interval between packets */
 
 /* timing */
 int             timing;		/* flag to do timing */
-long            tmin = MAXLONG;	/* minimum round trip time */
 long            tmax;		/* maximum round trip time */
-u_long          tsum;		/* sum of all times, for doing average */
 
 char 		*prognm ;
 char		*pr_addr();
@@ -132,13 +135,11 @@ main(argc, argv)
   extern int      errno, optind;
   extern char    *optarg;
   struct timeval  timeout;
-  struct hostent *hp;
-  struct sockaddr_in *to;
   struct protoent *proto;
   register int    i;
   int             ch, fdmask, hold, preload;
   u_char         *datap;
-  char           *target, hnamebuf[MAXHOSTNAMELEN], *malloc();
+  char           hnamebuf[MAXHOSTNAMELEN], *malloc();
 #ifdef IP_OPTIONS
   char            rspace[3 + 4 * NROUTES + 1];	/* record route space */
 #endif
@@ -228,7 +229,7 @@ main(argc, argv)
     setup_sockaddr(*argv++);
 
   if (numsites > 10 && interval == 1)
-    interval = 2;		/* increase time between pings */
+    interval = 2;		/* increase time between ping cycles */
 
   if (options & F_FLOOD && options & F_INTERVAL) {
     fprintf(stderr, "%s: -f and -i are incompatible options.\n", prognm);
@@ -284,6 +285,7 @@ main(argc, argv)
    */
   hold = 48 * 1024;
   setsockopt(s, SOL_SOCKET, SO_RCVBUF, (char *) &hold, sizeof(hold));
+  setsockopt(s, SOL_SOCKET, SO_SNDBUF, (char *) &hold, sizeof(hold));
 
   signal(SIGINT, prefinish);
   signal(SIGALRM, catcher);
@@ -427,6 +429,8 @@ real_pinger(which)
  * Need to add a small delay to prevent the kernel overflow from packets.
  * We use 'select' to get small interpkt delays between the ping for each
  * site and utilize the waiting period to see if any responses came in.
+ * If a valid packet comes in, the period waited is unknown, and hence,
+ * we do another wait() to force a pause for the INTERPKTGAP time.
  */
 
 pinger()
@@ -448,20 +452,29 @@ pinger()
 
     if (select(s + 1, (fd_set *) & fdmask, (fd_set *) NULL, (fd_set *) NULL,
 	       &timeout) < 1)
-      continue;
+      continue;		/* timeout or interrupted by alarm */
 
+    /*
+     * Here if there is something to read from the socket
+     */
     fromlen = sizeof(from);
     if ((cc = recvfrom(s, (char *) packet, packlen, 0,
                 (struct sockaddr *) &from, &fromlen)) < 0)
     {
-	if (errno == EINTR)
+	if (errno == EINTR)	/* interrupted, forget processing this time */
 	  continue;
-	perror("ping: recvfrom in pinger");
+	perror("ping: recvfrom in pinger");	/* some other error */
 	continue;
     }
-    else
-      pr_pack((char *) packet, cc, &from);	/* got a packet to process */
-  }
+    else  /* process good response, then force a delay */
+    {
+	pr_pack((char *) packet, cc, &from);
+
+	timeout.tv_sec = 0;
+	timeout.tv_usec = (INTERPKTGAP * 1000);	/* in millisecs */
+	select (0, (fd_set *)NULL, (fd_set *)NULL, (fd_set *)NULL, &timeout); 
+    }
+  }	/* end:  for(numsites...)  */
 	
   ++ntransmitted;
 
@@ -780,7 +793,7 @@ output_new_style()
   if (timing)
     printf("    ----  ----  ----");
   sent = rcvd = rpts = tmax = tsum = 0;
-  tmin = MAXLONG;
+  tmin = LONG_MAX;
   for (i = 0; i < numsites; i++) {
     dp = dest[i];
     printf("\n%-29.29s  %6ld  %6ld  %6ld%c %3ld%%",
