@@ -5,7 +5,7 @@
 #
 15,45 * * * *			@ROOTDIR@/bin/keepalive_monitors.pl
 0,10,20,30,40,50 * * * * 	@ROOTDIR@/bin/notifier.pl
-58 23  * * 6			@ROOTDIR@/bin/log-maint.pl
+58 23  * * 6			@ROOTDIR@/bin/logmaint.pl
 #
 ## for generating html pages, run every minute
 *  * * * *	[ -x @ROOTDIR@/web/cgi/genweb.cgi ] && @ROOTDIR@/web/cgi/genweb.cgi >/dev/null
