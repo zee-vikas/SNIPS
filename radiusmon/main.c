@@ -16,6 +16,9 @@
 
 /*
  * $Log$
+ * Revision 1.1  2001/08/05 09:13:42  vikas
+ * Added support for using NAS_PORT_TYPE. Needed by some radius servers.
+ *
  * Revision 1.0  2001/07/08 22:51:22  vikas
  * For SNIPS
  *
@@ -37,9 +40,10 @@ struct device_info
   int port;
   char *secret;
   char *user;
-  char *pass;	/* password */
-  int  timeout;	/* in secs */
+  char *pass;		/* password */
+  int  timeout;		/* in secs */
   int  retries;
+  int  porttype;	/* normally -1, indicating not sent */
   struct device_info *next;
 }  *device_info_list = NULL;	
 
@@ -57,7 +61,7 @@ int main(argc, argv)
  * Do other initializtions.
  * Format :
  *   POLLINTERVAL  <time in seconds>
- *   hostname address port secret username password [retry] [ntries]
+ *   hostname addr port secret username password [retry] [ntries] [port_type]
  */
 readconfig()
 {
@@ -65,7 +69,7 @@ readconfig()
   char *configfile, *datafile;
   char record[BUFSIZ], *sender;
   char w1[MAXLINE], w2[MAXLINE], w3[MAXLINE], w4[MAXLINE], w5[MAXLINE],
-    w6[MAXLINE], w7[MAXLINE], w8[MAXLINE];
+    w6[MAXLINE], w7[MAXLINE], w8[MAXLINE], w9[MAXLINE];
   FILE *pconfig ;
   EVENT v;				/* Defined in SNIPS.H		*/
   struct device_info *lastnode = NULL, *newnode;
@@ -102,9 +106,9 @@ readconfig()
     int rc;						/* return code	*/
 
     v.state = 0 ;				/* Init options to zero	*/
-    *w1 = *w2 = *w3 = *w4 = *w5 = *w6 = *w7 = *w8 = '\0' ;
-    rc = sscanf(record, "%s %s %s %s %s %s %s %s",
-		w1, w2, w3, w4, w5, w6, w7, w8);
+    *w1 = *w2 = *w3 = *w4 = *w5 = *w6 = *w7 = *w8 = *w9 = '\0' ;
+    rc = sscanf(record, "%s %s %s %s %s %s %s %s %s",
+		w1, w2, w3, w4, w5, w6, w7, w8, w9);
     if (rc == 0 || *w1 == '\0' || *w1 == '#')  /* Comment or blank 	*/
       continue;
 
@@ -123,9 +127,9 @@ readconfig()
       continue;
     }
     
-    if (strcasecmp(w1, "rrdtool") == 0)
+    if (strcasecmp(w1, "RRDTOOL") == 0)
     {
-      if (strcasecmp(w2, "on") == 0)
+      if (strcasecmp(w2, "ON") == 0)
       {
 #ifdef RRDTOOL
 	++dorrd;
@@ -175,19 +179,20 @@ readconfig()
     newnode->secret = Strdup(w4);    
     newnode->user = Strdup(w5);    
     newnode->pass = Strdup(w6);
-    newnode->timeout = (*w7 == '\0') ? 0 : atoi(w7);
-    newnode->retries = (*w8 == '\0') ? 0 : atoi(w8);
+    newnode->timeout  = (*w7 == '\0') ?  0 : atoi(w7);
+    newnode->retries  = (*w8 == '\0') ?  0 : atoi(w8);
+    newnode->porttype = (*w9 == '\0') ? -1 : atoi(w9);
     newnode->next = NULL;
 	
     if(!device_info_list)
-      device_info_list = newnode;		/* This is the first node (head) */
+      device_info_list = newnode;	/* This is the first node (head) */
     else
       lastnode->next = newnode;
 	  
     lastnode = newnode;
 
     write_event(fdout, &v);
-  }	/* end: while			*/
+  }	/* end: while	*/
 
   fclose(pconfig);
   close_datafile(fdout);
@@ -213,7 +218,7 @@ dotest(hostname, hostaddr)
 
   value = radiusmon(hostaddr, curnode->port, curnode->secret,
 		      curnode->user, curnode->pass, curnode->timeout,
-		      curnode->retries);
+		      curnode->retries, curnode->porttype);
 
   curnode = curnode->next;
   return ( (u_long)value );

@@ -12,6 +12,9 @@
 
 /*
  * $Log$
+ * Revision 1.1  2001/08/05 09:13:42  vikas
+ * Added support for using NAS_PORT_TYPE. Needed by some radius servers.
+ *
  * Revision 1.0  2001/07/08 22:51:22  vikas
  * For SNIPS
  *
@@ -38,11 +41,11 @@ static int  check_response(), get_inet_address();
  * 	recieve response
  * 	check response
  */
-radiusmon(host, port, secret, user, pass, timeout, retries)
+radiusmon(host, port, secret, user, pass, timeout, retries, porttype)
   char *host;	/* In dotted decimal addr */
   int  port;
   char *secret, *user, *pass;
-  int timeout, retries;
+  int timeout, retries, porttype;
 {
   int sockfd = 0, nretries = retries ? retries : RETRIES;
   char	*querybuf, *respbuf;
@@ -60,7 +63,7 @@ radiusmon(host, port, secret, user, pass, timeout, retries)
   hostaddr.sin_port = htons(port);
 
   if (debug > 4) {fprintf(stderr, "opened socket\n"); }	/* */
-  querybuf = make_radiuspkt(secret, user, pass, &querylen);
+  querybuf = make_radiuspkt(secret, user, pass, &querylen, porttype);
 
   /* use connect() instead of a sendto() so that we can do a select() later */
 
@@ -80,8 +83,8 @@ radiusmon(host, port, secret, user, pass, timeout, retries)
       return 0;
     }
     if (debug > 4)
-      fprintf(stderr,"sent packet to %s\n",
-	      (char *)inet_ntoa(hostaddr.sin_addr));
+      fprintf(stderr,"sent packet to %s port %d\n",
+	      (char *)inet_ntoa(hostaddr.sin_addr), port);
 
     /** Read the response packet **/
     respbuf = get_response(sockfd, /*seq */1,
@@ -108,9 +111,9 @@ radiusmon(host, port, secret, user, pass, timeout, retries)
  * The password needs to be hashed using the common secret and the 'vector'
  * which is sent along in the packet.
  */
-static char *make_radiuspkt(secret, user, pass, pquerylen)
+static char *make_radiuspkt(secret, user, pass, pquerylen, porttype)
   char *secret, *user, *pass;
-  int  *pquerylen;
+  int  *pquerylen, porttype;
 {
   char		pktvector[32];
   static char	buf[1024];
@@ -182,6 +185,17 @@ static char *make_radiuspkt(secret, user, pass, pquerylen)
     *pktdata++ = sizeof(myport) + 2;
     bcopy((char *)&myport, pktdata, sizeof(myport));
     pktdata += sizeof(myport);
+  }
+
+  if (porttype >= 0)		/* add only if specified by user */
+  {
+    UINT4  myporttype;
+
+    myporttype = htonl(porttype);
+    *pktdata++ = NAS_PORT_TYPE;
+    *pktdata++ = sizeof(myporttype) + 2;
+    bcopy((char *)&myporttype, pktdata, sizeof(myporttype));
+    pktdata += sizeof(myporttype);
   }
 
   /* now put the packet length in the header */
@@ -414,15 +428,19 @@ main(ac, av)
   char *av[];
 {
   int status = 0;
+  int porttype = -1;
 
   debug = 5;
 
-  if (ac != 6) {
-    fprintf(stderr, "usage: %s <ipaddr> <port> <secret> <user> <passwd>\n",
+  if (ac < 6) {
+    fprintf(stderr,
+	    "usage: %s <ipaddr> <port> <secret> <user> <passwd> [porttype]\n",
 	    av[0]);
     exit (1);
   }
-  status = radiusmon(av[1], atoi(av[2]), av[3], av[4], av[5], 0, 0);
+  if (ac == 7)
+    porttype = atoi(av[6]);
+  status = radiusmon(av[1], atoi(av[2]), av[3], av[4], av[5], 0, 0, porttype);
   printf("Exit value %d (%s)\n", status, (status == 1 ? "OK" : "FAILED"));
   exit (0);
 
