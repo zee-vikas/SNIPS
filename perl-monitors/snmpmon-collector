@@ -450,6 +450,9 @@ sub procdata_cisco_ts {
   
 }				# end: procdata_cisco_ts
 
+##
+# Extract memory, cpu, disk information based on rfc-1514
+#
 sub procdata_host {
   my ($dev) = @_ ;
   my $d = &toindex($dev);
@@ -478,7 +481,7 @@ sub procdata_host {
       my ($i, $cpu) = (0, 0);
       for ($i = ($#vals + 1) / 2; $i <= $#vals; ++$i) {
 	++$cpu;
-	print $mibalias{host}, ".cpuidle ", 100 - $vals[$i], "  1min-% cpu$cpu\n";
+	print $mibalias{host}, ".cpuload ", $vals[$i], "  1min-% cpu$cpu\n";
       }
     }
     elsif ($var eq "$MIBHOSTRESOURCES.2.3.1.3") {
@@ -495,27 +498,27 @@ sub procdata_host {
     }
   }	# foreach
   if ($maxproc =~ /\d+/ && $curproc =~ /\d+/ && $maxproc > 0 ) {
-    print $mibalias{host}, ".proctable_%free ",
-           100 - int($curproc * 100 / $maxproc), " VALUE\n";
+    print $mibalias{host}, ".proctable_%used ",
+           int($curproc * 100 / $maxproc), " VALUE\n";
   }
   foreach (@storageDesc) {
     my $used = shift @storageUsed;
     my $total = shift @storageTotal;
-    my $percentfree = 100 - int($used * 100 / $total);
+    my $percentused = int($used * 100 / $total);
     if (/Physical RAM/i) {
       s/Physical\s+RAM\s*//i;
-      print $mibalias{host}, ".phymem_%free $percentfree VALUE $_\n";
+      print $mibalias{host}, ".phymem_%used $percentused VALUE $_\n";
     }
     elsif (/Virtual Memory/i) {
       s/Virtual\s+Memory\s*//i;
-      print $mibalias{host}, ".virtual_%free $percentfree VALUE $_\n";
+      print $mibalias{host}, ".virtual_%used $percentused VALUE $_\n";
     }
     elsif (/Disk partition/i) {
       s/Disk\s+partition\s*//i;
-      print $mibalias{host}, ".diskspace_%free $percentfree VALUE $_\n";
+      print $mibalias{host}, ".diskspace_%used $percentused VALUE $_\n";
     }
     else {
-      print $mibalias{host}, ".storage_%free $percentfree VALUE $_\n";
+      print $mibalias{host}, ".storage_%used $percentused VALUE $_\n";
     }
   }
 }	# sub procdata_host()
@@ -663,7 +666,7 @@ sub doping {
   return ($value);
 }				# end doping()
 
-# this runs snmpwalk, and stores all values for each var as a tab separated
+# This runs snmpwalk, and stores all values for each var as a tab separated
 # list.
 sub get_snmpdata {
   my ($device) = @_;
