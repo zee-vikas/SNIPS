@@ -17,21 +17,25 @@ require DynaLoader;
 	     &snips_main  &snips_startup  &snips_reload
 	     &read_event &write_event &new_event
 	     &pack_event &unpack_event &print_event
+	     &update_event &alter_event
+	     &str2severity
 	     $s_configfile $s_datafile $s_sender
 	     $E_CRITICAL $E_ERROR $E_WARNING $E_INFO
 	     $n_UP $n_DOWN $n_UNKNOWN $n_TEST $n_NODISPLAY
 	    );
 
 @EXPORT_OK = qw(
+		$autoreload $debug $doreload $dorrd 
+		$prognm $pollinterval
 	       );
 
 use vars qw (
-	     $autoreload $debug $do_reload $dorrd 
-	     $prognm $pollinterval $libdebug
+	     $autoreload $debug $doreload $dorrd 
+	     $prognm $pollinterval
 	     $s_configfile $s_datafile $s_sender $extension
-	     $HOSTMON_SERVICE $HOSTMON_PORT $bindir $ping $rpcping
 	     $E_CRITICAL $E_ERROR $E_WARNING $E_INFO
 	     $n_UP $n_DOWN $n_UNKNOWN $n_TEST $n_NODISPLAY
+	     $HOSTMON_SERVICE $HOSTMON_PORT
 	     $dummy
 	    );
 
@@ -42,21 +46,16 @@ bootstrap SNIPS $VERSION;
 # Preloaded methods go here.
 tie $debug, 'SNIPS::globals', 'debug';
 tie $dorrd, 'SNIPS::globals', 'dorrd';
-tie $do_reload, 'SNIPS::globals', 'do_reload';
+tie $doreload, 'SNIPS::globals', 'doreload';
 tie $autoreload, 'SNIPS::globals', 'autoreload';
+tie $dummy, 'SNIPS::globals', 'dummy';	# FIX, update use vars also
 tie $s_configfile, 'SNIPS::globals', 'configfile';
 tie $s_datafile, 'SNIPS::globals', 'datafile';
 
-## Some cruft from the old snipslib.pl file, FIX FIX FIX
-
-$HOSTMON_SERVICE = "hostmon" unless $HOSTMON_SERVICE; # for 'hostmon'
-$HOSTMON_PORT = 5355 unless $HOSTMON_PORT; # used if not in /etc/services
-
-$ping = "ping";				# SET_THIS to ping location
-$rpcping = "$bindir/rpcping" unless $rpcping; # SET_THIS, used by 'hostmon'
-
+###
+### Set variables, etc.
+###
 $pollinterval = 300 ;	# set to a default value in seconds
-$libdebug = 0;
 
 $E_CRITICAL = 1;
 $E_ERROR    = 2;
@@ -82,17 +81,22 @@ sub open_datafile { return SNIPS::fopen_datafile(@_); }
 
 ## snips_main()
 # This is a sample generic main(). You dont have to call this function.
-# Requires references to the read_config and do_test functions, e.g.
+# Requires references to the readconfig() poll() or test() functions,
+# e.g.
 #
-#	SNIPS::main(\&read_conf, \&do_test)
+#	SNIPS::main(\&read_conf, \&do_poll, \&do_test)
 #
-#  to read configfile -	readconf()
-#  to test one site  -	do_test()
 
 sub main {
   my ($readconf_func, $poll_func, $test_func) = @_;
 
   $prognm = $0;
+  if ( ! defined($readconf_func) ) {
+    print STDERR ("FATAL: need valid readconfig() function when calling ",
+		  (caller(0))[3], "()\n" );
+    exit 1;
+  }
+
   $test_func = \&do_test  if ( ! defined($test_func) );	# FIX FIX
 
   if ( ! defined($poll_func) && !defined($test_func) ) {
@@ -104,8 +108,6 @@ sub main {
   parse_opts();
 
   startup();
-
-  open_eventlog();
 
   &$readconf_func();
 
@@ -122,7 +124,7 @@ sub main {
 
     check_configfile_age()  if ($autoreload);
 
-    if ( $do_reload ) {
+    if ( $doreload ) {
       reload($readconf_func);
       next;	# dont sleep
     }
@@ -158,34 +160,44 @@ sub parse_opts {
 sub startup {
 
   $prognm = $0;
-  $s_sender = $prognm;
-  $s_sender =~ s|^.*/||;	# without the directory prefix
+  if (! $s_sender) {
+    $s_sender = $prognm;
+    $s_sender =~ s|^.*/||;	# without the directory prefix
+  }
+  $extension = undef unless $extension;
 
   my $rc = SNIPS::_startup($prognm, $extension);
 
+  open_eventlog();
+
+#  set_configfile($s_configfile) if ($s_configfile);
+#  set_datafile($s_datafile)     if ($s_datafile);
+
   return $rc;
-}
+}	# startup()
 
 ## Perl version of the C function. Close all open filehandles BEFORE
-#  calling this routine. Needs reference to read_conf function.
+#  calling this routine. Needs *reference* to read_conf function.
 sub reload {
   my ($readconfig_func) = @_;
 
-  my $ndatafile = $s_datafile . ".hup";	# new datafile
+  my $ndatafile = $s_datafile . ".hup";	# new datafile name
 
   print STDERR "Reloading...";
-  $do_reload = 0;		# reset at start
+  $doreload = 0;		# reset at start
 
   if (! defined($readconfig_func)) {
     print STDERR "Cannot reload, no readconfig function set in program\n";
     return -1;
   }
-  my $odatafile = $s_datafile;
+  my $odatafile = $s_datafile;	# save current name
   $s_datafile = $ndatafile;	# temporarily set to new filename
+#  set_datafile($s_datafile);
 
   &$readconfig_func();		# writes to new datafile
 
   $s_datafile = $odatafile;	# restore
+#  set_datafile($s_datafile);
   
   copy_events_datafile($odatafile, $ndatafile);
 
@@ -199,8 +211,8 @@ sub reload {
     print STDERR "done\n";
   }
 
-  $do_reload = 0;		# reset
-}
+  $doreload = 0;		# reset
+}	# reload()
 
 ## De-reference list pointer
 sub get_eventfields {
@@ -252,7 +264,7 @@ sub poll_sites {
 
   while ( ($event = read_event($fd) ) ) 
   {
-    ++$siteno;
+    ++$siteno;		# start with 1, not 0
 
     # call test function
     # only $value is really needed, rest can be undef.
@@ -270,7 +282,7 @@ sub poll_sites {
     
     update_event($event, $status, $value, $thres, $maxsev);
     rewrite_event($fd, $event);
-    last if ($do_reload > 0);
+    last if ($doreload > 0);
 
   }	# while (readevent)
 
@@ -297,10 +309,11 @@ sub FETCH {
   my $self = shift;
   confess "wrong type" unless ref $self;
   croak "usage error" if @_;
+  my $var = $$self;
   my $value;
   local ($!) = 0;
-  $value = SNIPS::globals::_FETCH($self);
-  if ($!) { croak "get_function failed: $!"; }
+  $value = SNIPS::globals::_FETCH($var);
+  if ($!) { croak "_FETCH failed for $var: $!"; }
   return $value;
 }
 
@@ -309,10 +322,10 @@ sub STORE {
   confess "wrong type" unless ref $self;
   my $newval = shift;
   croak "usage error" if @_;
-
+  my $var = $$self;
   # print "Trying to STORE ", $$self, " with value $newval\n";
-  unless ( defined SNIPS::globals::_STORE($self, $newval) ) {
-    confess "Could not set ", $$self, ": $!";
+  unless ( defined SNIPS::globals::_STORE($var, $newval) ) {
+    confess "Could not set $var: $!";
   }
   return $newval;
 }
@@ -321,7 +334,8 @@ sub STORE {
 
 1;
 __END__
-# Below is the stub of documentation for your module. You better edit it!
+
+# Documentation for SNIPS.pm
 
 =head1 NAME
 
@@ -333,12 +347,20 @@ snips - Perl extension for SNIPS (System & Network Integrated Polling Software)
 
 =head1 DESCRIPTION
 
-SNIPS.pm is a perl interface to SNIPS
-(http://www.netplex-tech.com/software/snips) for writing Perl monitors.
+SNIPS.pm is a perl API for SNIPS
+(http://www.netplex-tech.com/software/snips) to write system and network
+monitors in Perl.
+
+The library reads, writes and generally works with an packed 'EVENT'
+C structure (described in snips.h). Most of the following routines
+work on this packed structure directly for performance, but the 
+individual fields of the packed structure can be accessed 
+using 'unpack_event()' and 'pack_event()'.
 
 =head2 API FUNCTIONS
 
-The following functions can be called by specifying the SNIPS package name:
+In order to invoke the API functions listed below, you should specify the
+complete package name, i.e.
 
     SNIPS::function()
 
@@ -349,74 +371,100 @@ below, but can be called without specifying the complete package name:
 	     snips_main()
 	     snips_startup()
 	     snips_reload()
-	     snips_datafile()
+	     open_datafile()
 
-=over
+=over 4
 
-=item main(\&readconfig, \&dopoll, \&dotest)
+=item main(\E<38>readconfig, \E<38>dopoll, \E<38>dotest)
 
 This is a generic main, and it will call the user defined functions dopoll()
-or if undefined, it will invoke a generic dopoll() with dotest() for each
-site.
+or if undefined, it will invoke a generic dopoll().
 
 Note the '\' before the '&' to pass function references to main().
 
 The readconfig() function should ideally write out an event for each device
 to be monitored to the output file.
-If dopoll() is defined, then this function must do one complete pass over
+If dopoll() is defined, then this function must do one complete pass of
 monitoring all the sites. main() will call dopoll() in an endless loop and
 check for any HUP signal between polls to see if the readconfig() function
 should be called to reload the new config file.
 
-If dopoll() is NOT defined, but dotest() is defined, then this function is
-invoked with the EVENT and the event-number (starting with 1) as input
+If dopoll() is NOT defined, but dotest() is defined instead, then a generic
+dopoll() function invokes the dotest() function
+with the EVENT and the event-number (starting with 1) as input
 parameters. The function should return a list with the following fields:
 
-       ($status, $value, $thres, $max_severity) = &dotest(EVENT *ev, count)
+   ($status, $value, $thres, $max_severity) = &dotest(EVENT *ev, count)
 
-Instead of using main(), a monitor can use the following instead (in
-pseudocode, no parameters are listed for the functions):
+The complete sequence that is performed by snips_main() is listed below.
+Instead of using snips_main(), a monitor can have its own (similar) 
+calling routine. (The following is in pseudocode and no parameters
+are listed for the functions):
 
-	startup()
-	sub readconfig()
-	{
-		open_datafile()
-		new_event()
-		foreach device
-		{
-			alter_event()
-			write_event()
-		}
-		close_datafile()
-	}
-	while (1)
-	{
-	  sub dopoll()
-	  {
-		open_datafile()
-		while (read_event())
-		{
-			sub dotest()
-			{
-				%event = unpack_event()
-				### test function here ###
-				calc_status()
-				update_event() # or set %event fields directly
-				# pack_event() if changed %event fields
-				write_event()
-			}
-			close_datafile()
-			if ($do_reload)
-			   reload()
-			sleep()
-		} # end while
-	  } # end dopoll
+    parse_opts()
+    startup()
+    sub readconfig()
+    {
+	    open_datafile()
+	    new_event()
+	    foreach device in configfile
+	    {
+	    	alter_event()  # change sitename, addr, varname
+	    	write_event()  # to data file
+	    }
+	    close_datafile()
+    }
+    while (1)
+    {
+      sub dopoll()
+      {
+	    open_datafile()
+	    while (read_event())
+	    {
+		    sub dotest()
+		    {
+			    %event = unpack_event()  # if needed
+			    ### test function here ###
+			    calc_status()	# if needed
+		    }
+		    # set %event fields directly and call pack_event()
+		    # OR call update_event()
+		    update_event()
+		    rewrite_event()
+	    } # end while
+	    close_datafile()
+	    if ($doreload)
+	       reload()
+	    sleep()
+      } # end dopoll
 
-	}  # end while
+    }  # end while
+
+=item parse_opts()
+
+This reads the 'standard' command line options:
+
+	-a	autoreload (if config file has changed)
+	-d	debug
+	-x ext	Extension to add onto program name (see below)
+	-f configfile
+	-o datafile
+
+The 'startup()' function (below) creates a default config/data filename
+based on the program name. If an extension is specified using C<-x>, then
+this is added to the program name before creating the default config/data
+filenames. This allows running multiple copies of the program with each
+reading different config files. The other alternative is to create a
+symbolic link to the program with a different name and invoking that.
 
 =item startup()
 
-=item reload(\&readconfig)
+This function extracts the program name from the command line and sets up
+the various signal handlers. It sets the default config and data file names
+(based on the program name). It kills any previously running process and
+writes the PID in the pidfile. Every monitor MUST call this routine.
+
+=item reload(\E<38>readconfig)
 
 On getting a HUP signal, the 'doreload' flag is set to a non-zero value. On
 detecting this flag, you should call reload() with the reference to the
@@ -429,7 +477,13 @@ the reload flag before returning.
 
 =item EVENT * new_event()
 
+This returns a packed binary event structure with its fields initialized
+(i.e. it calls init_event() after mallocing memory for the event structure).
+
 =item init_event(EVENT * event)
+
+This zeroes out the binary event structure and fills it in with the
+current date and time.
 
 =item alter_event(EVENT *ev, sender, sitename, siteaddr, varname, varunits)
 
@@ -445,47 +499,104 @@ This updates the event 'ev' with the specified values. 'status' is 0 or 1,
 has been exceeded, 'severity'  is the new severity of the event. 'thres' can
 be 'undef' if it is unchanged (i.e. not working with 3 thresholds).
 
-=item open_datafile()
-
-=item close_datafile()
-
 =item calc_status(int value, int warn_thres, error_thres, crit_thres)
 
 If the monitor has 3 separate thresholds for the variable being monitored,
-calc_status() is a utility routine which calculates which threshold the value
+calc_status() is a utility routine to calculate which threshold the value
 exceeds. It returns:
 
 	 ($status, $threshold, $maxseverity) = calc_status(...)
 
-This is typically called to get the parameters to call update_event()
+This is typically called to get the parameters needed for update_event()
 
 
-=item read_event()
+=item int fd = open_datafile(char *filename, char *mode)
 
-=item write_event()
+This opens a new output datafile with the mode specified using 
+"w" "r" "r+" "w+" "a+" based on reading, writing, read and write, etc.
+(see the fopen() C library call). It returns an integer file descriptor that
+should be used for the various event file functions listed below.
 
-=item pack_event()
+=item close_datafile(int fd)
 
-=item unpack_event()
+close the data file opened using open_datafile().
+
+=item EVENT * read_event(int fd)
+
+Read one packed event  from the datafile.
+
+=item write_event(int fd, EVENT *v)
+
+Write one packed event to the datafile. Note that if you want to read and
+then update a particular event, then you should call rewrite_event() instead,
+because the read_event() will have advanced the file pointer for the 
+write_event() so you will end up overwriting some other event.
+
+=item rewrite_event(int fd, EVENT *v)
+
+Rewinds the file one event, and then writes out the event passed to it.
+
+Write one packed event to the datafile.
+
+=item EVENT * pack_event(HASH %event)
+
+This converts a event hash ( returned by unpack_event() ) into a binary
+event structure needed by write_event().
+
+=item HASH * unpack_event(EVENT *v)
+
+This converts a packed event structure into a hash, with the elements of
+the hash accessed using the field names such as 'sender', 'site.name',
+'site.addr', etc. This gives access to the various fields of the event
+structure.
+
+	%event = unpack_event($event);
+	$event{sender} = "pingmon";
+	$event{site.name} = "gw.navya.com";
+	$event = pack_event(%event);
+
+
+=item str2severity(char *severity)
+
+Given a severity string such as Critical, Error, Warning, Info, returns an
+integer indicating the severity.
+
+=item get_eventfields()
+
+This utility function returns a list of the field names of the 
+EVENT structure
+(which are used in the hash returned by 'unpack_event()').
 
 =back
 
 =head2 VARIABLES
 
-=over
+=over 4
 
 =item $s_configfile  $s_datafile
 
-These are the configfile and datafile names, and automatically created by the 
-startup() function.
+These are the configfile and datafile names, and the names are 
+automatically created by the startup() function (unless provided on
+the command line). You must call the functions set_configfile() and
+set_datafile() to change the names in the C library.
 
 =item $E_INFO $E_WARN $E_ERROR $E_CRITICAL
 
-These are constants for the various severity levels.
+These are constants for the various severity levels and correspond to 4-1.
 
-=item $debug $dorrd $autoreload $doreload
+=item $debug $dorrd $autoreload $doreload $pollinterval
 
-More global variables.
+These are not exported, so in order to access these variables you
+have to specify the package name (e.g. C<$SNIPS::debug>).
+C<$debug> will enable debugging (higher than one is more verbose),
+C<$dorrd> will enable generation of RRDtool graph data,
+C<$autoreload> is set when the user specifies C<-a> on the command line
+and the function 'check_configfile_age()' should be called if this is set
+(which actually sets the C<$doreload> flag).
+C<$pollinterval> should be set only if you are calling the snips_main()
+function to set the sleep interval between polls.
+C<$doreload> is set when the function recieves a HUP signal and the
+main function should call 'reload()' when this is set.
 
 =back
 
