@@ -49,7 +49,7 @@ RPCLIB=""
 
 PSFLAGS='axw'           # flags for ps to see all processes (-ef on SysV)
 
-RRDLIBDIR="/usr/local/rrd/lib"   # for librrd.a (RRD Tools)
+RRDLIBDIR="/usr/local/rrdtool/lib"   # for librrd.a (RRD Tools)
 PERL="/bin/perl"
 AR="ar r"
 RANLIB="ranlib"
@@ -158,6 +158,7 @@ fi
 #  and perl modules installed and available
 echo ""
 echo "                    RRDtool Graphing Support"
+if [ -d $RRDLIBDIR ]; then RRDCFLAGS="-DRRDTOOL" ; fi
 if [ "$RRDCFLAGS" = "" ]; then definput="n" ; else definput="y" ; fi
 echo "Do you have RRDtool installed (www.caida.org)? [$definput]: " | tr -d '\012'
 read input
