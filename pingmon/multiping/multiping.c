@@ -31,6 +31,10 @@
  *
  *
  * $Log$
+ * Revision 1.14  2000/04/24 04:46:28  vikas
+ * Now can specify the list of hosts on stdin (if the host list is
+ * too long on the command line, Unix can truncate it to _SC_ARGS_MAX)
+ *
  * Revision 1.13  2000/04/24 03:42:42  vikas
  * does not increase the 'interval' to 2 secs if large number of hosts.
  * Speeds up process, and increasing the interval to 2 secs did not
@@ -168,7 +172,7 @@ main(argc, argv)
   struct timeval  timeout;
   struct protoent *proto;
   register int    i;
-  int             ch, fdmask, hold, preload;
+  int             ch, fdmask, hold, preload, dostdin;
   u_char         *datap;
 #ifdef IP_OPTIONS
   char            rspace[3 + 4 * NROUTES + 1];	/* record route space */
@@ -177,10 +181,16 @@ main(argc, argv)
   prognm = argv[0] ;
   numsites = 0;
   datalen = DEFDATALEN;
+  dostdin = 0;
   bzero(dest, sizeof(destrec *) * MAXREMOTE);
   preload = 0;
   /* we store the time sent and the index into destrec[] inside pkt */
   datap = &outpack[8 + sizeof(struct timeval) + sizeof (int)];
+
+  if (argc > 0 && strcmp(argv[argc-1], "-") == 0) {
+    dostdin = 1;
+    --argc;
+  }
   while ((ch = getopt(argc, argv, "tRc:dfh:i:l:np:qrs:v")) != EOF) {
     switch (ch) {
       case 't':
@@ -256,10 +266,25 @@ main(argc, argv)
   argc -= optind;
   argv += optind;
 
-  if (argc < 1)
-    usage();
-  while (argc--)
-    setup_sockaddr(*argv++);
+  if (dostdin)			/* read list of hosts from stdin */
+  {
+    int  i;
+    char thost[64];
+    for (i = 0; fscanf(stdin, "%s", &thost) != EOF; ++i)
+      setup_sockaddr(thost);
+/*    fprintf(stderr, "Reading host list from stdin...%d read\n", i);	/* */
+    if (i <= 0) {
+      fprintf(stderr, "ERROR: need at least one host\n");
+      exit(1);
+    }
+  }
+  else
+  {
+    if (argc < 1)
+      usage();
+    while (argc--)
+      setup_sockaddr(*argv++);
+  }
 
   if (options & F_FLOOD && options & F_INTERVAL) {
     fprintf(stderr, "%s: -f and -i are incompatible options.\n", prognm);
@@ -380,7 +405,7 @@ catcher()
   int             i;
 
   mpinger();
-  signal(SIGALRM, catcher);
+  signal(SIGALRM, catcher);	/* keep calling itself */
   if (!npackets || ntransmitted < npackets)
     alarm((u_int) interval);
   else {				/* End of transmitting */
@@ -1230,7 +1255,7 @@ usage()
 {
   fprintf(stderr, "usage: %s [-Rdfnqrtv] [-c count] [-i wait] [-l preload]\n",
 	  prognm);
-  fprintf(stderr, "            [-p pattern] [-s packetsize] host\n\n");
+  fprintf(stderr, "            [-p pattern] [-s packetsize] host|-\n\n");
   fprintf(stderr, "       Options:\n");
   fprintf(stderr, "       R: ICMP record route\n");
   fprintf(stderr, "       d: set SO_DEBUG socket option\n");
@@ -1239,5 +1264,7 @@ usage()
   fprintf(stderr, "       r: set SO_DONTROUTE socket option\n");
   fprintf(stderr, "       t: show results in tabular form\n");
   fprintf(stderr, "       v: verbose mode for ICMP stuff\n");
+  fprintf(stderr, "    If hostname is '-', you can specify the list of hosts on stdin\n");
+
   exit(1);
 }
