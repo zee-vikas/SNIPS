@@ -34,7 +34,10 @@ static char rcsid[] = "$Header$" ;
  * the ICMP socket.
  *
  * $Log$
- * Revision 1.4  1993/10/31 05:23:05  conklin
+ * Revision 1.5  1993/10/31 05:25:12  aggarwal
+ * Had an extra '*' in sendto (for 'to'). Reported by Rick Beebe @Yale
+ *
+ * Revision 1.4  1993/10/31  05:23:05  conklin
  * Added loop/delay to prevent the return packets from overflowing the
  * kernel.
  *
@@ -386,7 +389,7 @@ real_pinger(which)
   icp->icmp_cksum = in_cksum((u_short *) icp, cc);
 
   to = &dest[which]->sockad;
-  i = sendto(s, (char *) outpack, cc, 0, *((struct sockaddr *)to),
+  i = sendto(s, (char *) outpack, cc, 0, (struct sockaddr *)to,
              sizeof(struct sockaddr));
 
   if (i < 0 || i != cc) {
