@@ -50,7 +50,7 @@ LDFLAGS		= @LDFLAGS@
 INCLUDES	= -I. $(INCS)
 DEFINES		= $(DEFS)
 
-CFLAGS		= @CFLAGS@ $(INCLUDES) $(DEFINES) -DMIBDIR="\"$(ETCDIR)\""
+CFLAGS		= @CFLAGS@ $(INCLUDES) $(DEFINES) -DMIBDIR="\"$(MIBDIR)\""
 LIBS		= @LIBS@
 
 ## ------------------------------------------------------------
