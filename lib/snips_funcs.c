@@ -11,6 +11,9 @@
 
 /*
  * $Log$
+ * Revision 1.2  2001/08/01 23:21:07  vikas
+ * Just added some debug statements.
+ *
  * Revision 1.1  2001/07/28 01:48:32  vikas
  * standalone() checks to ensure it does not kill current process.
  *
@@ -678,7 +681,7 @@ char *set_datafile(f)
 
 /*	DATA_VERSION UTILITIES
  * Routines to write and extract the data version of the datafile.
- * SNIPS did not use any version numbers.
+ * NOCOL did not use any version numbers.
  * The version number is stored in the first EVENT record, which
  * is a null event. The version is stored in the first 8 bytes of
  * the file:
@@ -703,6 +706,8 @@ write_dataversion(fd)
   write (fd, (char *)&v, sizeof(v));
   return (DATA_VERSION);
 #else
+  if (debug > 1)
+    fprintf(stderr, "write_dataversion() - nothing written, old DATA_VERSION\n");
   return (0);
 #endif
 }
@@ -737,11 +742,16 @@ read_dataversion(fd)
     }
     return (0);
   }
-  if ( (ver = extract_dataversion(&v)) != 0 )
+  ver = extract_dataversion(&v);
+  if (debug > 2)
+    fprintf(stderr, "read_dataversion() - version is %d\n", ver);
+  if (ver != 0 )
     return (ver);
   else
     lseek(fd, -(off_t)sizeof(EVENT), SEEK_CUR);	/* rewind */
 #endif
+  if (debug > 2)
+    fprintf(stderr, "read_dataversion() - DATA_VERSION undefined or 0\n");
   return (0);
 }
 /*
