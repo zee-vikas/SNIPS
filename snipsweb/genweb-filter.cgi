@@ -1,4 +1,4 @@
-#!/usr/bin/perl -w
+#!/usr/bin/perl
 #
 # CGI to display GUI to invoke genweb.cgi with appropriate parameters.
 # This cgi is typically invoked from genweb.cgi. It sets the various
@@ -161,7 +161,7 @@ sub set_defaults {
   my($query) = @_;
 
   my $values = $query->param('monpat');
-  if ($values =~ /^\s*$/) {
+  if ( (! defined($values)) || ($values =~ /^\s*$/) ) {
     $query->param(-name=>'monpat', -value=>\@monitors);
   }
   else {
