@@ -52,6 +52,8 @@ a:hover      { text-decoration: underline; color: red }
       <li><a href="#R4">Nothing is being logged to <b>snipslogd</b></a></li>
       <li><a href="#R5">Why do I get lots of sniplog messages when I restart a
         monitor?</a></li>
+      <li><a href="#R6">Why do I get "time of day goes back, taking
+	      countermeasures" errors in my monitor logs?</a></li>
     </ul>
   </li>
   <li>Miscellaneous
@@ -179,6 +181,16 @@ a:hover      { text-decoration: underline; color: red }
     devices&nbsp; and logs it to snipslogd since its a change in the event's
     state. This information is important in snipslog since any intelligent log
     file parser should know when a monitor restarts.</dd>
+  <dt>&nbsp;</dt>
+  <dt><a name="R6"><b>Why do I get "Warning: time of day goes back, taking
+	      countermeasures" errors?</b></a></dt>
+      <dd>This is coming from the system  <i>ping</i> used by 
+	hostmon-collector. The bug report from Redhat
+      is <a href="http://bugzilla.redhat.com/bugzilla/show_bug.cgi?id=37485">
+      http://bugzilla.redhat.com/bugzilla/show_bug.cgi?id=37485</a>.
+	You can avoid this error message by setting the value of
+	$ping in <i>snipsperl.conf</i> to multiping.
+  </dd>
   <dt>&nbsp;</dt>
 </dl>
 <hr width="75%" noshade>
