@@ -200,7 +200,7 @@ sub newSocket {
   if ($host =~ /^\d+/) { $remote_addr = inet_aton($host); }
   else { $remote_addr = gethostbyname($host); }
 
-  if (! $remote_addr) {print STDERR "$0: Unknown host $host"; return undef; }
+  if (! $remote_addr) {print STDERR "$0: Unknown host $host\n"; return undef; }
   
   $paddr = sockaddr_in($port, $remote_addr); # packed address
   if (! connect($SOCK, $paddr)) {
@@ -332,7 +332,7 @@ sub REAPER {
 
 sub kill_all_children {
   return if (0>$#childpids);
-  print STDERR "Killing all children ", join (" ", @childpids), "\n";
+  print STDERR "Killing all children- ", join (" ", @childpids), "\n";
   kill 15, @childpids if ( $#childpids >= 0);
   @childpids = ();
 }
@@ -382,12 +382,10 @@ sub fork_datacollectors {
 sub run_datacollector {
 
   # print STDERR "pid $$ doing $#hosts hosts from $hosts[0] to $hosts[$#hosts]\n" if ($debug);
-  $SIG{TERM} = 'DEFAULT';#sub {die "process $$ terminated on TERM signal"; };
-  $SIG{QUIT} = 'DEFAULT';#sub {die "process $$ terminated on QUIT signal"; };
-  $SIG{INT} = 'DEFAULT';
-  $SIG{CHLD} = 'IGNORE';
-  $SIG{HUP} = 'IGNORE';
-
+  foreach ('CHLD', 'TERM', 'KILL', 'QUIT', 'INT') { $SIG{$_} = 'DEFAULT'; }
+  foreach ('HUP') { $SIG{$_} = 'IGNORE'; }
+  # $SIG{TERM} = sub {die "process $$ terminated on TERM signal"; };
+  # $SIG{QUIT} = sub {die "process $$ terminated on QUIT signal"; };
   while (1) {
     collect_allhosts();
     sleep $sleeptime;
@@ -400,9 +398,9 @@ sub my_main {
   {
     $redo = 0;
     my $child = undef;
-    $SIG{INT}  = sub { &kill_all_children; &REAPER; exit 1;};
-    $SIG{TERM} = sub { &kill_all_children; &REAPER; exit 1;};
-    $SIG{QUIT} = sub { &kill_all_children; &REAPER; exit 1;};
+    foreach ('INT', 'TERM', 'QUIT') {
+      $SIG{$_}  = sub { &kill_all_children; &REAPER; exit 1; };
+    }
     $SIG{HUP} = sub {	## setup signal handler for HUP
       print STDERR "Got HUP, rereading config files\n";
       $redo = 1;
