@@ -163,7 +163,8 @@ sub df {
     # if (/^\/dev\/dsk\/0s3/)  { next; }# just skip the SVR4 specific 
     if (/^\s*\/proc/)  { next; } # OS type filesystems
     if (/^\s*\/hinv/)  { next; }
-    if (/^\s*\/dev\/fd/)  { next; }
+    if (/^\s*fd/)  { next; }
+    if (/^\s*mnttab/)  { next; }
     if (m@:@) { next; }		# skip NFS mounts
     if (m@^\s*/vol/@) { next; }	# vold mounts (floppies, CD's)
     
