@@ -141,8 +141,6 @@ else { gen_html_cgimode(); }
 sub init {
   # use CGI qw/:standard -debug/;
   use CGI;
-  use URI;
-  use URI::Escape;
   use SNIPS;
 
   $etcdir  = "$snipsroot/etc"  unless $etcdir;	# location of config file
@@ -190,6 +188,7 @@ sub init {
   $thiscgi = new CGI;
   $my_url = $thiscgi->self_url;
   $my_url =~ s/;/&/g;
+  # $my_url =~ s|http://localhost/||;	# cannot have localhost in URL
 
   $debug = 0 unless $debug;
 
@@ -257,7 +256,7 @@ sub process_parameters {
   # Did we specify a refresh rate? If so what values?
   my $r=$thiscgi->param('refresh');
   if (defined($r) && $r =~ /\d+/) {
-    $refresh = $thiscgi->param('refresh');
+    $refresh = $r;
   }
   $refresh = 30 if ($refresh < 30);	# minimum
   # Did we specify compact Info format? 
@@ -273,12 +272,13 @@ sub is_admin_mode {
 }
 
 #------------------------------------------------------------
-## Print HTTP header
+## Print HTTP header (in CGI mode)
 sub print_http_header {
   my ($my_refresh) = @_;
-  $my_refresh = $large_refresh if (@row_data > $max_table_rows);
+  $my_refresh = $large_refresh if ($#row_data > $max_table_rows);
 
-  print $thiscgi->header(-Refresh=>"$my_refresh; URL=$my_url", -expires=>'now');
+  print $thiscgi->header(-Refresh=>"$my_refresh; URL=$my_url",
+			 -expires=>'+30s');
 }
 
 #------------------------------------------------------------
@@ -367,27 +367,32 @@ sub print_html_prologue {
 EOT
 
   ## now print the buttons for the form
-  my $esc_url = uri_escape($my_url);
+  my $restore_url = $cgimode ? "$my_url" : "${baseurl}/${view}.html";
+  $restore_url = uri_escape($restore_url);
+
   if ( is_admin_mode() ) {
     print <<EOT1;
    <!--	--- buttons for other views --- -->
    <TABLE border=0 cellpadding=0 cellspacing=5>
       <TR>
 EOT1
-    my $u = URI->new($my_url);
-    my $p=$u->path;
-    my $query=$u->query;
-    my $newq;
+    my ($path, $query) = split (/\?/, $my_url);
     foreach my $v (@views) {
       next if ($v eq "User");
-      ($newq=$query) =~ s/view=[A-Za-z]+//;
-      $newq .= '&' if $newq;
-      $newq .="view=$v";
       if ($gen_cgi_links) {
-	print "<TD valign=middle><FORM action=\"$p?$newq\" method=\"get\">
-	<input type=submit name=view value=\"$v\"></FORM></TD>\n";
+	my $newq;
+	($newq=$query) =~ s/view=[A-Za-z]+//;
+	$newq .= '&' if $newq;
+	$newq .="view=$v";
+	print "<TD valign=middle><FORM action=\"$path\" method=\"get\">
+	<input type=submit name=view value=\"$v\">\n";
+	foreach  (split /&/, $newq) {
+	  my ($key, @val) = split /=/;
+	  print $thiscgi->hidden(-name => $key, -value=>\@val);
+	}
+        print "\n  </FORM></TD>\n";
       }
-      else {
+      else {	# not cgi mode
 	print "<TD valign=middle>
                <FORM action=\"${baseurl}/${v}.html\" method=\"get\">
                 <input type=submit name=view value=\"$v\">
@@ -399,23 +404,26 @@ EOT1
     if ($filter_cgi ne "")
     {
       print "  <TD valign=middle>
-                 <FORM action=\"${filter_cgi}?$newq\" method=\"get\">
-	         <input type=submit value=\"Filter\"></FORM></TD>\n";
+                 <FORM action=\"${filter_cgi}\" method=\"get\">
+	         <input type=submit value=\"Filter\">\n";
+      foreach ( qw(view refresh sound sort maxrows namepat varpat monpat
+		   filepat altprint))
+      { 
+	my $p =$thiscgi->param($_);
+	next if !defined($p) || $p eq '' || $p eq 'no';
+	print $thiscgi->hidden(-name => $_, -value=>$thiscgi->param($_));
+      }
+      print "
+             <input type=hidden name=noncgiurl value=\"${baseurl}/${view}.html\">
+            </FORM></TD>\n";
     }
-
 
     print "
       <TD width=50>&nbsp;</TD>
       <TD valign=middle><FORM action=\"$snipsweb_cgi\" method=\"post\">
         <input type=submit name=command value=\"Help\">
-        <input type=hidden name=restoreurl value=\"$esc_url\"></FORM>
+        <input type=hidden name=restoreurl value=\"$restore_url\"></FORM>
     ";
-    foreach ( qw(view refresh sound sort maxrows namepat varpat monpat
-		 filepat altprint)) { 
-      my $p =$thiscgi->param($_);
-      next if !defined($p) || $p eq '' || $p eq 'no';
-      print $thiscgi->hidden(-name => $_, -value=>$thiscgi->param($_));
-    }
     print "</TD>
       </TR>
    </TABLE>
@@ -430,7 +438,7 @@ EOT1
    <P align="right">
    <FORM action="$snipsweb_cgi" method="get">
        <input type=submit name=command value="UserHelp">
-       <input type=hidden name=restoreurl value="$esc_url">
+       <input type=hidden name=restoreurl value="$restore_url">
    </FORM> </P>
 EOT1a
   }	# if-else (admin-mode)
@@ -451,13 +459,13 @@ sub print_column_headers {
   
   $numcols = ($#fields + 1) * 2;
   
-  if ($max_table_rows == -1 || @row_data > $max_table_rows)  {	
+  if ($max_table_rows == -1 || $#row_data > $max_table_rows)  {	
     # Print status in a compact format
     print $thiscgi->comment('     --- main data table --'), "\n";
     print "     <PRE> <b>\n";
-    printf "%4s %1.1s  %14s %15s  %12s %9s %11s %-12s %s\n",
-        '#', 'S', 'Device Name ', 'Address  ',
-	'Variable', 'Value', 'Down At  ', 'Monitor', 'Updates';
+    printf "%4s %1.1s  %14s %15s  %21s  %11s  %-12s %s\n",
+        '#', 'S', 'Device Name ', 'Address   ',
+	'Variable / Value', 'Down At  ', 'Monitor', 'Updates';
     print "   </b>\n\n";
   } else {
     # Print status in a table format
@@ -589,6 +597,19 @@ sub print_row_data {
   }
 }
 
+## From URI.pm
+sub uri_escape {
+  my ($uri) = @_;
+  my %escapes;
+
+  # Build a char->hex map
+  for (0..255) {
+    $escapes{chr($_)} = sprintf("%%%02X", $_);
+  }
+  $uri =~ s/([^;\/?:@&=+\$,A-Za-z0-9\-_.!~*'()])/$escapes{$1}/g;	#'; # emacs
+  return $uri;
+}
+
 #------------------------------------------------------------
 ## Write out one row of data.
 
@@ -609,26 +630,29 @@ sub print_row_old {
   # &clean_data($i);	# delete unwanted characters (not needed anymore)
 
   my $update = ($updates{"$ev->{site_name}:$ev->{site_addr}:$ev->{var_name}"} 
-		or '') ;
+		or '');
+  $update = "OLD DATA" if ($ev->{warning} & $n_OLDDATA);
+
   #if ($update eq "") {$update = $updates{"$ev->{site_name}:$ev->{site_addr}"}; }
   #if ($update eq "") {$update = $updates{"$ev->{site_name}"}; }
 
   # hide if Critical display
   return if $update =~ /^\(H\)/ && $action eq 'Critical';
 
-  my $esc_url = uri_escape($my_url);
+  my $restore_url = $cgimode ? "$my_url" : "${baseurl}/${view}.html";
+  $restore_url = uri_escape($restore_url);
   my $siteHREF = "<A HREF=\"$snipsweb_cgi?displaylevel=$action";
   $siteHREF .= "&sitename=$ev->{site_name}&siteaddr=$ev->{site_addr}";
   $siteHREF .= "&variable=$ev->{var_name}&sender=$ev->{sender}";
-  $siteHREF .= "&command=Updates&return=$esc_url\">";
+  $siteHREF .= "&command=Updates&restoreurl=$restore_url\">";
 
-  if ($max_table_rows == -1 || @row_data > $max_table_rows) {
+  if ($max_table_rows == -1 || $#row_data > $max_table_rows) {
     # need to put the href in front of the sitename, but we dont want
     # the sitename to be prepended with underlined blanks. i.e. convert
     #   '<a href="xx">   site</a>'  INTO  '  <a href="xx">site</a>'
     my $site = sprintf "%-14.14s", $ev->{site_name}; # printing size
     $site =~ s|(\S+)|$siteHREF$1</a>| ;
-    printf "%4d %1.1s  %s %-15.15s  %12.12s= %8lu %02d/%02d %02d:%02d %-12s %s\n",
+    printf "%4d %1.1s  %s %-15.15s  %12.12s= %8lu  %02d/%02d %02d:%02d %-12s %s\n",
       $entry_count, $views[$ev->{severity}], $site,
       $ev->{site_addr}, $ev->{var_name}, $ev->{var_value},
       $ev->{mon},$ev->{day},$ev->{hour},$z1[$ev->{min}], $ev->{sender}, 
@@ -662,7 +686,6 @@ sub print_row_old {
     $siteHREF =~ s/command\=Updates/command\=SiteHelp/;  # change the command
     $sitename = "$siteHREF" . "$ev->{site_name}" . "</a>";
   }
-
   print <<EoRow ;
     $tdstart $entry_count $tdend
     $tdstart $views[$ev->{severity}]  $tdend
@@ -725,25 +748,27 @@ sub print_row_new
   
   my $update = ($updates{"$ev->{site_name}:$ev->{site_addr}:$ev->{var_name}"} 
 		or '') ;
+  $update = "OLD DATA" if ($ev->{warning} & $n_OLDDATA);
   #if ($update eq "") {$update = $updates{"$ev->sitename:$ev->siteaddr"}; }
   #if ($update eq "") {$update = $updates{"$ev->sitename"}; }
   
   # hide if Critical display
   return if $update =~ /^\(H\)/ && $action eq 'Critical';
 
-  my $esc_url = uri_escape($my_url);
+  my $restore_url = $cgimode ? "$my_url" : "${baseurl}/${view}.html";
+  $restore_url = uri_escape($restore_url);
   my $siteHREF = "<A HREF=\"$snipsweb_cgi?displaylevel=$action";
   $siteHREF .= "&sitename=$ev->{site_name}&siteaddr=$ev->{site_addr}";
   $siteHREF .= "&variable=$ev->{var_name}&sender=$ev->{sender}";
-  $siteHREF .= "&command=Updates&return=$esc_url\">";
+  $siteHREF .= "&command=Updates&restoreurl=$restore_url\">";
 
-  if ($max_table_rows == -1 || @row_data > $max_table_rows) {
+  if ($max_table_rows == -1 || $#row_data > $max_table_rows) {
     # need to put the href in front of the sitename, but we dont want
     # the sitename to be prepended with underlined blanks. i.e. convert
     #   '<a href="xx">   site</a>'  INTO  '  <a href="xx">site</a>'
     my $site = sprintf "%-14.14s", $ev->{site_name}; # printing size
     $site =~ s|(\S+)|$siteHREF$1</a>| ;
-    printf "%4d %1.1s %s %-15.15s  %12.12s=%9lu %02d/%02d %02d:%02d %-12s %s\n",
+    printf "%4d %1.1s %s %-15.15s  %12.12s=%9lu  %02d/%02d %02d:%02d %-12s %s\n",
       $entry_count, $views[$ev->{severity}], $site,
       $ev->{site_addr}, $ev->{var_name}, $ev->{var_value},
       $ev->{mon},$ev->{day},$ev->{hour},$z1[$ev->{min}], $ev->{sender}, 
@@ -964,7 +989,7 @@ sub gen_html_files {
   foreach $view (@views)
   {
     # use * notation for indirect filehandles, since strict subs complains
-    # if done any other way. FIX FIX Check if this works.
+    # if done any other way.
     local *FH;
     open (FH, ">$webdir/${view}.html") ||
       die "Cannot open output file $webdir/${view}.html $!";
@@ -1010,7 +1035,7 @@ sub gen_html_files {
     else {
       # Print a helpful message if there's nothing wrong
       if ($i{$view} == 1) {
-	my $msg = "All Devices are OK!";
+	my $msg = "No Devices at this level!";
 	$msg = "No monitors running?" if (! @dfiles);
 	print "<TR><TD colspan=$numcols align=center bgcolor=\"\#CCCC99\">\n";
 	print "<br><H3>$msg</H3>";
@@ -1048,19 +1073,22 @@ sub gen_html_cgimode {
   foreach my $dfile (@dfiles) {
     get_row_data($dfile);
   }
+  if ($#row_data > $max_table_rows && $large_refresh > $refresh) {
+    $refresh = $large_refresh;
+  }
   sort_rows();
   print_http_header($refresh);
   print_html_prologue($refresh);
   print_column_headers();
   print_row_data();
   
-  if (@row_data > $max_table_rows) {
+  if ($#row_data > $max_table_rows) {
     print "\n</PRE>\n";
   }
   else {
     # Print a helpful message if there's nothing wrong
     if ($entries == 1) {
-      my $msg = "All Devices are OK!";
+      my $msg = "No devices to be displayed at this level!";
       $msg = "No monitors running?" if (! @dfiles);
       print "<TR><TD colspan=$numcols align=center bgcolor=\"\#CCCC99\">\n";
       print "<br><H3>$msg</H3>";
