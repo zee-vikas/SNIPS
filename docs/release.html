@@ -1,0 +1,171 @@
+<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
+<!-- $Header$ -->
+<html>
+
+<head>
+<title>SNIPS / SNIPS RELEASE Notes</title>
+<!-- This is the HISTORY file -->
+<style>
+<!--
+      BODY {
+        background-color : White;
+        font-family : Verdana, Arial, Helvetica, sans-serif;
+        font-size : 10pt;
+      }
+      TABLE.small {
+        font-family : Arial, Helvetica, sans-serif;
+        TD {
+             font-size : small;
+             font-family : Arial, Helvetica, sans-serif;
+        }
+      }
+-->
+</style>
+</head>
+
+<body bgcolor="#FFFFFF">
+
+<h1 align="center">SNIPS Release Notes &amp;<br>
+Change Log</h1>
+
+<hr align="center" width="70%" noshade color="#008080">
+
+<h3><font face="Arial,Helvetica">Features in v1.0</font></h3>
+
+<p>The main features in this release of the software are:</p>
+
+<blockquote>
+  <table border="0" width="90%" bordercolor="#C0C0C0" cellspacing="0" cellpadding="3">
+    <tr>
+      <td><strong>» RRDtool support</strong></td>
+      <td>Support for storing and graphing monitored data using RRDtool.</td>
+    </tr>
+    <tr>
+      <td width="25%"><strong>» HUP handler</strong></td>
+      <td width="75%">All monitors can be sent a HUP signal to re-read their config file.</td>
+    </tr>
+    <tr>
+      <td><strong>» 'rating' of events</strong></td>
+      <td>A new binary string indicating the result of the last 4 (or 8) polls for each device.</td>
+    </tr>
+    <tr>
+      <td><strong>» color curses</strong></td>
+      <td>Support for color curses in snipstv</td>
+    </tr>
+    <tr>
+      <td><strong>» more snipstv views</strong></td>
+      <td>Multiple extended views in snipstv (using the 'e' key)</td>
+    </tr>
+    <tr>
+      <td><strong>» snipsweb sorting</strong></td>
+      <td>snipsweb allows sorting and filtering when run as a CGI</td>
+    </tr>
+    <tr>
+      <td><strong>» hostmon for NT</strong></td>
+      <td>hostmon-client for NT machines</td>
+    </tr>
+    <tr>
+      <td><strong>» RTT in ippingmon</strong></td>
+      <td>ippingmon now also records packet round trip times (RTT)</td>
+    </tr>
+  </table>
+</blockquote>
+
+<p>&nbsp;</p>
+
+<hr color="#008080">
+
+<h3><font face="Arial,Helvetica">Release Notes</font></h3>
+
+<h4><u>snips v1.0 <i>(June 2001)</i></u></h4>
+
+<p>Complete rewrite of all modules and libraries.</p>
+
+<blockquote>
+  <table border="1" width="90%" bordercolor="#C0C0C0" cellspacing="0" cellpadding="3"
+  class="small">
+    <tr>
+      <td width="5%">1.</td>
+      <td width="18%">RRDtool</td>
+      <td>Added support for generating RRD databases in all software.</td>
+    </tr>
+    <tr>
+      <td>2.</td>
+      <td>multiping</td>
+      <td>» Replaced alarm() with select(). 2x faster (500 sites in 150 secs)<br>
+      » Can now read host list from stdin instead of cmdline.<br>
+      » Also monitors round-trip times (RTT)</td>
+    </tr>
+    <tr>
+      <td>3.</td>
+      <td>snips.h</td>
+      <td>» Increased size of fields and added new fields.<br>
+      » All datafiles have DATA_VERSION stored as first event.</td>
+    </tr>
+    <tr>
+      <td>4.</td>
+      <td>snipstv</td>
+      <td>» Color ncurses <a href="mailto:(jgreco@ns.sol.net">(jgreco@ns.sol.net</a>)<br>
+      » Multiple 'extended' views<br>
+      » Rating</td>
+    </tr>
+    <tr>
+      <td>5.</td>
+      <td>HUP support</td>
+      <td>All servers support HUP for reloading config files.</td>
+    </tr>
+    <tr>
+      <td>6.</td>
+      <td>eventlog.c</td>
+      <td>snipslogd&nbsp; hostname can be set in SNIPSLOG_HOST environment variable for all the
+      monitors (jgreco@ns.sol.net).</td>
+    </tr>
+    <tr>
+      <td>7.</td>
+      <td>-x option</td>
+      <td>Added -x flag to add an extension to the program name&nbsp; (jgreco@ns.sol.net)</td>
+    </tr>
+    <tr>
+      <td>8.</td>
+      <td>Local address<br>
+      binding</td>
+      <td>If an address is set in the environment variable SNIPS_LCLADDR, that local address is
+      used for binding the local socket (if multiple local address, needed by firewalls)&nbsp; -
+      jgreco@ns.sol.net</td>
+    </tr>
+    <tr>
+      <td>9.</td>
+      <td>Hostnames</td>
+      <td>Can use hostnames instead of IPaddr in all config files.</td>
+    </tr>
+    <tr>
+      <td>10.</td>
+      <td>genweb.cgi</td>
+      <td>Added CGI support to snipsweb.pl (rocky@breakaway.net)</td>
+    </tr>
+    <tr>
+      <td>11.</td>
+      <td>hostmon-nt</td>
+      <td>Hostmon-client for Windows NT machines (srbrown@nyx.net)</td>
+    </tr>
+    <tr>
+      <td>12.</td>
+      <td>notifier.pl</td>
+      <td>Read eventlog data from stdin for running from snipslog.conf</td>
+    </tr>
+    <tr>
+      <td>13.</td>
+      <td>portmon</td>
+      <td>Stores and displays the response time of the web pages.</td>
+    </tr>
+  </table>
+</blockquote>
+
+<hr align="center" width="50%" size="1" color="#0000FF">
+
+<p align="center"><font face="Arial,Helvetica"><span
+style="color: rgb(0,0,255); font-weight: bold; font-variant: small-caps; letter-spacing: 2px"><a
+HREF="mailto:vikas@navya_.com">Feedback</a></span></p>
+</font>
+</body>
+</html>
