@@ -31,6 +31,11 @@
  *
  *
  * $Log$
+ * Revision 1.15  2000/04/28 03:34:44  vikas
+ * Stopped using signals to trigger next ping cycle. Now uses
+ * select() instead which also allows controlling the interval
+ * between ping cycles by subtracting the cycle time.
+ *
  * Revision 1.14  2000/04/24 04:46:28  vikas
  * Now can specify the list of hosts on stdin (if the host list is
  * too long on the command line, Unix can truncate it to _SC_ARGS_MAX)
@@ -68,35 +73,6 @@
  * 	v1.5 => 9 mins,  203.0u 7.2s 9:06.16 38.5% 0+243k 3+5io 3pf+0w
  * 	v1.6 => 1 mins,  1.5u 4.3s 1:15.64 7.7% 0+221k 2+4io 4pf+0w
  * (these times are for 150 sites on cmd line, 10 pkts, 100 byte pkts)
- *
- * Revision 1.5  1993/10/31  05:25:12  aggarwal
- * Had an extra '*' in sendto (for 'to'). Reported by Rick Beebe @Yale
- *
- * Revision 1.4  1993/10/31  05:23:05  conklin
- * Added loop/delay to prevent the return packets from overflowing the
- * kernel.
- *
- * Revision 1.3  1992/06/10  15:04:00  spencer
- * Realized that since recvfrom() tells where the packet came from, I don't
- * need to use the upper four bits to keep track of it (as long as the
- * same IP# doesn't show up more than once on the command line).  So I
- * stopped using the upper four bits as a tag, freeing up the full 16 bits
- * for the sequence number.  Made a separate usage() function and an
- * output_new_style() function for clarity.
- *
- * Revision 1.2  1992/06/10  14:58:39  spencer
- * First completed version of multiping.  Uses upper four bits of the ICMP
- * sequence number field in the ICMP header to keep track of which remote
- * site the echo is going to or coming from.
- *
- * This version was reconstructed backwards, after-the-fact, so it probably
- * has some bugs and quirks in it.  Things to check are the bit manipulation
- * for the sequence ID numbers, and whether or not prefinish() screws things
- * up.  The only other changes to be made are to make a separate usage()
- * function and a output_new_style() function for clarity.
- *
- * Revision 1.1  1992/06/10  14:57:07  spencer
- * Initial revision
  *
  */
 
@@ -138,6 +114,8 @@ static char rcsid[] = "$Id$";
 #include "multiping.h"		/* all sorts of nasty #defines */
 #undef MAIN
 
+static int	finish_up = 0;	/* flag to indicate end */
+
 int options;			/* F_* options */
 int             max_dup_chk = MAX_DUP_CHK;
 int             s;		/* socket file descriptor */
@@ -154,11 +132,11 @@ int             interval = 1;	/* interval between packets */
 
 /* timing */
 int             timing;		/* flag to do timing */
-long            tmax;		/* maximum round trip time */
+long            tmax = 0;	/* maximum round trip time */
 
 char 		*prognm ;
 char		*pr_addr();
-void            catcher(), prefinish(), finish();
+void            wrapup(), stopit(), finish();
 
 int		packlen ;
 u_char		*packet;
@@ -169,10 +147,10 @@ main(argc, argv)
 {
   extern int      errno, optind;
   extern char    *optarg;
-  struct timeval  timeout;
+  struct timeval  timeout, intvl;
   struct protoent *proto;
   register int    i;
-  int             ch, fdmask, hold, preload, dostdin;
+  int             ch, hold, preload, dostdin, almost_done = 0;
   u_char         *datap;
 #ifdef IP_OPTIONS
   char            rspace[3 + 4 * NROUTES + 1];	/* record route space */
@@ -272,7 +250,6 @@ main(argc, argv)
     char thost[64];
     for (i = 0; fscanf(stdin, "%s", &thost) != EOF; ++i)
       setup_sockaddr(thost);
-/*    fprintf(stderr, "Reading host list from stdin...%d read\n", i);	/* */
     if (i <= 0) {
       fprintf(stderr, "ERROR: need at least one host\n");
       exit(1);
@@ -343,89 +320,169 @@ main(argc, argv)
   setsockopt(s, SOL_SOCKET, SO_RCVBUF, (char *) &hold, sizeof(hold));
   setsockopt(s, SOL_SOCKET, SO_SNDBUF, (char *) &hold, sizeof(hold));
 
-  signal(SIGINT, prefinish);
-  signal(SIGALRM, catcher);
+  signal(SIGINT, wrapup);
 
   while (preload--)		/* fire off them quickies */
     mpinger();
 
-  if ((options & F_FLOOD) == 0)
-    catcher();			/* start things going */
+  if (options & F_FLOOD) {
+    intvl.tv_sec = 0;
+    intvl.tv_usec = 10000;	/* 10 ms */
+  }
+  else {
+    long t;
+    t = (interval * 1000) - (INTERPKTGAP * (numsites - 1));
+    if (t < 0)
+      t = 0;	/* interval in ms adjusted for time to send pkts */
+    intvl.tv_sec  = (int) (t) / 1000;
+    intvl.tv_usec = (int) (t) % 1000 * 1000;
+  }
 
-  for (;;) {
+  mpinger();			/* send the first ping */
+
+  while (!finish_up) {
     struct sockaddr_in from;
     register int    cc;
     int             fromlen;
+    int		    n;
+    fd_set	    rfds;
 
-    /*
-     * If not flooding, we only send another packet after receiving
-     * the previous one, or after 'interval' seconds expire (see -i
-     * option).  If flooding, we send anyway (and read response only
-     * if select() says something is waiting)
-     */
-    if (options & F_FLOOD) {
-      mpinger();
-      timeout.tv_sec = 0;
-      timeout.tv_usec = 10000;
-      fdmask = 1 << s;
-      if (select(s + 1, (fd_set *) & fdmask, (fd_set *) NULL, (fd_set *) NULL,
-            &timeout) < 1)
+    timeout.tv_sec = intvl.tv_sec;
+    timeout.tv_usec = intvl.tv_usec;
+    FD_ZERO(&rfds);
+    FD_SET(s, &rfds);
+    n = select(s + 1, &rfds, (fd_set *)NULL, (fd_set *)NULL, &timeout);
+    if (n < 0)
+      continue;		/* interrupted, so wait again */
+
+    if (n == 1)
+    {		/* recieve and print packet */
+      fromlen = sizeof(from);
+      if ((cc = recvfrom(s, (char *) packet, packlen, 0,
+			 (struct sockaddr *) &from, &fromlen)) < 0) {
+	if (errno == EINTR)
+	  continue;
+	perror("ping: recvfrom");
 	continue;
-    }
-    fromlen = sizeof(from);
-    if ((cc = recvfrom(s, (char *) packet, packlen, 0,
-                (struct sockaddr *) &from, &fromlen)) < 0) {
-      if (errno == EINTR)
-	continue;
-      perror("ping: recvfrom");
-      continue;
-    }
-    pr_pack((char *) packet, cc, &from);
+      }
+      pr_pack((char *) packet, cc, &from);
+    }	/* if (n == 1) */
 
-    /* nreceived is not accurate since it is max of all dest[i]->nreceived */
-    if (npackets && (ntransmitted >= npackets)) break;	/* */
+    if (n == 0 || options & F_FLOOD)
+    {			/* timed out or flood mode */
+      if (!npackets || ntransmitted < npackets)
+	mpinger();
+      else
+      {
+	if (almost_done)
+	  break;		/* second time around */
+	almost_done = 1;
+	intvl.tv_usec = 0;
+	if (tmax > 0) {		/* have recieved some packets back */
+	  intvl.tv_sec = 2 * tmax / 1000;
+	  if (!intvl.tv_sec)
+	    intvl.tv_sec = 1;
+	} else
+	  intvl.tv_sec = MAXWAIT + 1;
+      }
 
-  }	/* end: for(;;) */
+    }	/* if (n == 0 && ... */
+
+  }	/* end: while() */
+
   finish();
 
 }	/* end: main() */
 
 /*
- * catcher -- This routine causes another PING to be transmitted, and then
- * schedules another SIGALRM for 1 second from now.
- * 
- * bug -- Our sense of time will slowly skew (i.e., packets will not be
- * launched exactly at 1-second intervals).  This does not affect the
- * quality of the delay and loss statistics.
+ * On the first SIGINT, set npackets = ntransmitted so that the main
+ * loop waits for any stragglers and ends the pinging.
  */
 void
-catcher()
+wrapup()
 {
-  int             waittime;
-  int             i;
+  int i;
 
-  mpinger();
-  signal(SIGALRM, catcher);	/* keep calling itself */
-  if (!npackets || ntransmitted < npackets)
-    alarm((u_int) interval);
-  else {				/* End of transmitting */
-    nreceived = 0;
-    for (i = 0; i < numsites; i++)	/* find max 'nreceived' */
-      if (dest[i]->nreceived > nreceived)
-	nreceived = dest[i]->nreceived;
+  signal(SIGINT, stopit);		/* really quit on next interrupt */
 
-    if (nreceived) {
-      waittime = 2 * tmax / 1000;
-      if (!waittime) {
-	waittime = 1;
-	}
-    } else
-      waittime = MAXWAIT + 1; 
+  nreceived = 0;
+  for (i = 0; i < numsites; i++)    	/* find max 'nreceived' */
+    if (dest[i]->nreceived > nreceived)
+      nreceived = dest[i]->nreceived;
 
-    signal(SIGALRM, finish);
-    alarm((u_int) waittime + interval);
-  }
-}	/* end: catcher() */
+  if (nreceived >= ntransmitted		/* quit immediately if caught up */
+      || nreceived == 0)		/* or if remote is dead */
+    finish_up = 1;
+  else
+    npackets = ntransmitted + 1;	/* forces wait before exit in main */
+}
+
+/*
+ * called on signal (interrup). Just sets flag.
+ */
+void
+stopit()
+{
+  finish_up = 1;
+}
+
+/*
+ * mpinger -- front end to real_pinger() so that all sites get pinged with
+ * each invocation of pinger().
+ * Need to add a small delay to prevent the kernel overflow from packets.
+ * We use 'select' to get small interpkt delays between the ping for each
+ * site and utilize the waiting period to see if any responses came in.
+ * If a valid packet comes in, the period waited is unknown, and hence,
+ * we do another wait() to force a pause for the INTERPKTGAP time.
+ */
+
+mpinger()
+{
+  int	i;
+
+  for (i = 0; i < numsites; i++)
+  {
+    int             fromlen;
+    register int    cc;
+    struct sockaddr_in from;
+    struct timeval timeout;
+    fd_set	fds;
+
+    real_pinger(i);
+
+    timeout.tv_sec = 0;
+    timeout.tv_usec = (INTERPKTGAP * 1000);	/* in millisecs */
+    FD_ZERO(&fds);
+    FD_SET(s, &fds);
+
+    if (select(s + 1, &fds, (fd_set *)NULL, (fd_set *)NULL, &timeout) < 1)
+      continue;		/* timeout or interrupted by alarm */
+
+    /*
+     * Here if there is something to read from the socket
+     */
+    fromlen = sizeof(from);
+    if ((cc = recvfrom(s, (char *) packet, packlen, 0,
+                (struct sockaddr *) &from, &fromlen)) < 0)
+    {
+	if (errno == EINTR)	/* interrupted, forget processing this time */
+	  continue;
+	perror("ping: recvfrom in mpinger");	/* some other error */
+	continue;
+    }
+    else  /* process good response, then force a delay */
+    {
+	pr_pack((char *) packet, cc, &from);
+
+	timeout.tv_sec = 0;
+	timeout.tv_usec = (INTERPKTGAP * 1000);	/* in millisecs */
+	select (0, (fd_set *)NULL, (fd_set *)NULL, (fd_set *)NULL, &timeout); 
+    }
+  }	/* end:  for(numsites...)  */
+	
+  ++ntransmitted;
+
+}
 
 /*
  * real_pinger -- was 'pinger' in the original but pinger() is now a front
@@ -479,63 +536,6 @@ real_pinger(which)
   }
   if (!(options & F_QUIET) && options & F_FLOOD)
     write(STDOUT_FILENO, &DOT, 1);
-}
-
-/*
- * mpinger -- front end to real_pinger() so that all sites get pinged with
- * each invocation of pinger().
- * Need to add a small delay to prevent the kernel overflow from packets.
- * We use 'select' to get small interpkt delays between the ping for each
- * site and utilize the waiting period to see if any responses came in.
- * If a valid packet comes in, the period waited is unknown, and hence,
- * we do another wait() to force a pause for the INTERPKTGAP time.
- */
-
-mpinger()
-{
-  int	i;
-
-  for (i = 0; i < numsites; i++)
-  {
-    int             fromlen, fdmask;
-    register int    cc;
-    struct sockaddr_in from;
-    struct timeval timeout;
-
-    real_pinger(i);
-
-    timeout.tv_sec = 0;
-    timeout.tv_usec = (INTERPKTGAP * 1000);	/* in millisecs */
-    fdmask = 1 << s;
-
-    if (select(s + 1, (fd_set *) & fdmask, (fd_set *) NULL, (fd_set *) NULL,
-	       &timeout) < 1)
-      continue;		/* timeout or interrupted by alarm */
-
-    /*
-     * Here if there is something to read from the socket
-     */
-    fromlen = sizeof(from);
-    if ((cc = recvfrom(s, (char *) packet, packlen, 0,
-                (struct sockaddr *) &from, &fromlen)) < 0)
-    {
-	if (errno == EINTR)	/* interrupted, forget processing this time */
-	  continue;
-	perror("ping: recvfrom in mpinger");	/* some other error */
-	continue;
-    }
-    else  /* process good response, then force a delay */
-    {
-	pr_pack((char *) packet, cc, &from);
-
-	timeout.tv_sec = 0;
-	timeout.tv_usec = (INTERPKTGAP * 1000);	/* in millisecs */
-	select (0, (fd_set *)NULL, (fd_set *)NULL, (fd_set *)NULL, &timeout); 
-    }
-  }	/* end:  for(numsites...)  */
-	
-  ++ntransmitted;
-
 }
 
 /*
@@ -900,19 +900,6 @@ output_new_style()
   }
   putchar('\n');
   exit(0);
-}
-
-/*
- * prefinish -- On first SIGINT, allow any outstanding packets to dribble in
- */
-void
-prefinish()
-{
-  if (nreceived >= ntransmitted   /* quit now if caught up */
-      || nreceived == 0)          /* or if remote is dead */
-    finish();
-  signal(SIGINT, finish);         /* do this only the 1st time */
-  npackets = ntransmitted+1;      /* let the normal limit work */
 }
 
 /*
