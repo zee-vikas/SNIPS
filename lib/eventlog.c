@@ -8,6 +8,9 @@
 
 /*+
  * $Log$
+ * Revision 1.1  2001/07/28 01:47:16  vikas
+ * Now converts host endian to network byte order (marya@st.jip.co.jp)
+ *
  * Revision 1.0  2001/07/08 22:19:38  vikas
  * Lib routines for SNIPS
  *
@@ -99,10 +102,12 @@ int openeventlog()
  */
 #define RETRY_REOPEN	1*60	/* seconds before trying to reopen logfd */
 
-eventlog(v)
-  EVENT *v;
+eventlog(vin)
+  EVENT *vin;			/* in host endian format */
 {
   int bytesleft, retval;
+  EVENT vbuf;
+  EVENT *v = &vbuf;
 
   if (logfd == -2)	/* try to open if after RETRY_REOPEN interval */
   {
@@ -114,8 +119,10 @@ eventlog(v)
   if (logfd < 0)    	/* Silently fail if no connection could be opened */
     return(-1);
     
+  htonevent(vin, v);		/* convert to network endian */
+
   for (bytesleft=sizeof(*v); bytesleft > 0; bytesleft-=retval)
-    if ((retval=write(logfd, (char *)v, bytesleft)) < 0)
+    if ((retval=write(logfd, (char *)v + (sizeof(*v) - bytesleft), bytesleft)) < 0)
     {
 #ifdef DEBUG
       perror("eventlog: write() failed");
@@ -153,4 +160,38 @@ int closeeventlog()
   closetime = time((time_t *) NULL);
   logfd = -2;
   return(0);
+}
+
+/*
+ * Convert EVENT values from host to network byte order
+ */
+htonevent(f,t)
+  EVENT *f;
+  EVENT *t;
+{
+  if (f != t)
+    bcopy(f,t,sizeof(*f));
+  t->var.value     = htonl(f->var.value);
+  t->var.threshold = htonl(f->var.threshold);
+  t->eventtime     = htonl(f->eventtime);
+  t->polltime      = htonl(f->polltime);
+  t->op            = htonl(f->op);
+  t->id            = htonl(f->id);
+}
+
+/*
+ * Convert EVENT values from network to host byte order
+ */
+ntohevent(f,t)
+  EVENT *f;
+  EVENT *t;
+{
+  if (f != t)
+    bcopy(f,t,sizeof(*f));
+  t->var.value     = ntohl(f->var.value);
+  t->var.threshold = ntohl(f->var.threshold);
+  t->eventtime     = ntohl(f->eventtime);
+  t->polltime      = ntohl(f->polltime);
+  t->op            = ntohl(f->op);
+  t->id            = ntohl(f->id);
 }
