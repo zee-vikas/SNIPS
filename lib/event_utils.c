@@ -10,6 +10,10 @@
 
 /*
  * $Log$
+ * Revision 1.1  2001/08/01 23:27:30  vikas
+ * tstr() needed to be static in event2strarray(), was causing problems
+ * in the perl xs unpack_event() routine.
+ *
  * Revision 1.0  2001/07/08 22:19:38  vikas
  * Lib routines for SNIPS
  *
@@ -120,8 +124,8 @@ init_event(pv)
   strncpy(pv->var.name, "NOTSET", sizeof(pv->var.name));
   strncpy(pv->var.units, "NOTSET", sizeof(pv->var.units));
 
-  pv->eventtime = clock;
-  pv->polltime = clock;
+  pv->eventtime = (u_long)clock;
+  pv->polltime = (u_long)clock;
 
   pv->var.value = 0 ;
   pv->var.threshold = 0 ;		/* threshold not set here */
@@ -218,11 +222,11 @@ update_event(pv, status, value, thres, maxsev)
   prevsev = pv->severity;		/* save current severity */
   pv->var.value = (u_long)value ;	/* update value.. */
   pv->var.threshold = thres;		/* ..and threshold */
-  pv->polltime = clock;			/* update poll timestamp */
+  pv->polltime = (u_long)clock;		/* update poll timestamp */
 
   if (status == 1)
   {		/* up */
-    pv->eventtime = clock;		/* update time always */
+    pv->eventtime = (u_long)clock;		/* update time always */
     if (!(pv->state & n_UP))		/* recent change of state */
     {
       pv->state = SETF_UPDOUN(pv->state, n_UP) ;
@@ -238,7 +242,7 @@ update_event(pv, status, value, thres, maxsev)
 
     if (pv->severity != prevsev)		/* change in severity */
     {
-      pv->eventtime = clock;
+      pv->eventtime = (u_long)clock;
       pv->state = SETF_UPDOUN (pv->state, n_DOWN);
       pv->loglevel = (pv->severity < prevsev) ? pv->severity : prevsev;
       eventlog(pv);
@@ -368,7 +372,7 @@ static char *fieldnames[] = {
 
 /*+ event2strarray()
  * Converts the event structure into an array of character strings.
- * (mainly for using by perl routines).
+ * (mainly for using by perl interface to unpack() an EVENT structure).
  * If called with a null event, fills in the names of the fields in the
  * char array.
  *
@@ -378,12 +382,13 @@ char **event2strarray(pv)
   EVENT *pv;
 {
   static char *ea[ID + 1];
-  char tstr[ID + 1][64];		/* temp strings */
+  static char tstr[ID + 1][64];		/* temp string storage */
 
   if (pv == NULL)
     return (fieldnames);
 
   bzero (ea, sizeof(ea));
+  bzero (tstr, sizeof(tstr));
 
   ea[SENDER] = pv->sender;
   ea[DEVICE_NAME] = pv->device.name;
@@ -398,14 +403,14 @@ char **event2strarray(pv)
   ea[VAR_UNITS] = pv->var.units;
 
   ea[SEVERITY] = &(tstr[SEVERITY][0]);
-  sprintf(ea[SEVERITY], "%d", pv->severity);
+  sprintf(ea[SEVERITY], "%d", (int)pv->severity);
   ea[LOGLEVEL] = &(tstr[LOGLEVEL][0]);
-  sprintf(ea[LOGLEVEL], "%d", pv->loglevel);
+  sprintf(ea[LOGLEVEL], "%d", (int)pv->loglevel);
   ea[STATE] = &(tstr[STATE][0]);
-  sprintf(ea[STATE], "%d", pv->state);
+  sprintf(ea[STATE], "%d", (int)pv->state);
 
   ea[RATING] = &(tstr[RATING][0]);
-  sprintf(ea[RATING], "%d", pv->rating);
+  sprintf(ea[RATING], "%d", (int)pv->rating);
 
   ea[EVENTTIME] = &(tstr[EVENTTIME][0]);
   sprintf(ea[EVENTTIME], "%lu", (u_long)(pv->eventtime));
@@ -413,10 +418,20 @@ char **event2strarray(pv)
   sprintf(ea[POLLTIME], "%lu", (u_long)(pv->polltime));
 
   ea[OP] = &(tstr[OP][0]);
-  sprintf(ea[OP], "%lu", pv->op);
+  sprintf(ea[OP], "%lu", (u_long)pv->op);
   ea[ID] = &(tstr[ID][0]);
-  sprintf(ea[ID], "%lu", pv->id);
-  
+  sprintf(ea[ID], "%lu", (u_long)pv->id);
+
+#ifdef DEBUG
+  if (debug > 2)
+  {
+    int i;
+    for (i = 0; i <= ID; ++i)
+      fprintf(stderr, "(debug) event2strarray() %s = %s\n",
+	      fieldnames[i], ea[i]);
+  }
+#endif
+
   return (ea);		/* return event as a char array */
 
 }	/* event2strarray() */
