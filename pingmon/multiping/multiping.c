@@ -31,6 +31,11 @@
  *
  *
  * $Log$
+ * Revision 1.13  2000/04/24 03:42:42  vikas
+ * does not increase the 'interval' to 2 secs if large number of hosts.
+ * Speeds up process, and increasing the interval to 2 secs did not
+ * make sense anyway.
+ *
  * Revision 1.12  1998/07/31 18:34:17  vikas
  * Avoid divide by zero
  *
@@ -256,9 +261,6 @@ main(argc, argv)
   while (argc--)
     setup_sockaddr(*argv++);
 
-  if (numsites > 10 && interval == 1)
-    interval = 2;		/* increase time between ping cycles */
-
   if (options & F_FLOOD && options & F_INTERVAL) {
     fprintf(stderr, "%s: -f and -i are incompatible options.\n", prognm);
     exit(1);
@@ -356,10 +358,10 @@ main(argc, argv)
     pr_pack((char *) packet, cc, &from);
 
     /* nreceived is not accurate since it is max of all dest[i]->nreceived */
-/*  if (npackets && (nreceived >= npackets)) break;	/* */
+    if (npackets && (ntransmitted >= npackets)) break;	/* */
 
   }	/* end: for(;;) */
-/*  finish();	  /* NOT REACHED */
+  finish();
 
 }	/* end: main() */
 
