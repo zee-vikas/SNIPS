@@ -6,32 +6,41 @@
  *	Vikas Aggarwal (vikas@navya_.com)  June 2000
  *
  */
-
+#ifdef __cpluscplus
+extern "C" {
+#endif
 #include "EXTERN.h"
 #include "perl.h"
 #include "XSUB.h"
 
-
-MODULE = snips		PACKAGE = snips		PREFIX = snips_
-
-PROTOTYPES: ENABLE
+#ifdef __cpluscplus
+}
+#endif
 
 #define _MAIN_
 #include "snips.h"
 #undef _MAIN_
 #include <stdio.h>
+#ifndef PL_na
+# define PL_na na
+#endif
 
-# We call the startup function which forks and sets up signal handlers.
+
+MODULE = SNIPS		PACKAGE = SNIPS		PREFIX = snips_
+
+PROTOTYPES: ENABLE
+
+
+# Call the startup function which forks and sets up signal handlers.
 # Need to setup the readconfig function so that the signal handler
 # knows what to call to re-read the config file on HUP.
 # NOTE NOTE: Different arguments as compared to the C routine.
 int
-snips_startup(readconf)
+_startup(readconf)
 	void  *readconf;
   CODE:
   {
-	debug = 2;
-	prognm = "perltestmonitor";
+	prognm = "perltestmonitor";	/* FIX FIX */
 	set_readconfig_function(readconf);  /* needed by reload */
 	RETVAL = snips_startup(NULL, NULL);
   }
@@ -56,7 +65,6 @@ snips_done()
 FILE *
 snips_reload(oldfh)
 	FILE *oldfh;
-
   CODE:
   {
 	int newfd ;
@@ -69,8 +77,7 @@ snips_reload(oldfh)
 	  RETVAL = newfh;
 	}
 	else
-	  /* ST(0) = &sv_undef;	/* or XSRETURN_UNDEF */
-	  RETVAL = NULL;
+	  XSRETURN_UNDEF;
   }
   OUTPUT:
 	RETVAL
@@ -100,7 +107,6 @@ snips_get_configfile()
 int
 read_dataversion(fh)
 	FILE *fh;
-
   CODE:
   {
 	RETVAL = read_dataversion(fileno(fh));
@@ -112,7 +118,6 @@ read_dataversion(fh)
 int
 write_dataversion(fh)
 	FILE *fh;
-
   CODE:
   {
 	RETVAL = write_dataversion(fileno(fh));
@@ -124,37 +129,24 @@ write_dataversion(fh)
 ##  EVENT functions
 ##
 
-# Create a new event. REMEMBER TO FREE??
+# Create a new event. Use newSV() so that perl can handle freeing memory.
 EVENT *
-new_packedevent()
+new_event()
   PREINIT:
 	static EVENT v;
+	SV *sv;
   CODE:
   {
 	bzero(&v, sizeof (EVENT));
-	RETVAL = &v;
-  }
-  OUTPUT:
-	RETVAL
-
-# Create a new event. REMEMBER TO FREE??
-EVENT *
-new_packedevent_FIX()
-  PREINIT:
-	EVENT *pv;
-  CODE:
-  {
-	pv = (void *)malloc(sizeof(EVENT));
-	bzero(pv, sizeof (EVENT));
-	RETVAL = (EVENT *)newSVpv((char *)pv, sizeof(EVENT));
-	free(pv);
+	sv = newSVpv((char *)&v, sizeof(EVENT));	
+	RETVAL = (EVENT *)SvPV(sv, PL_na);
   }
   OUTPUT:
 	RETVAL
 
 ##
 int
-init_packedevent(pv)
+init_event(pv)
 	EVENT *pv;
 
   CODE:
@@ -167,7 +159,7 @@ init_packedevent(pv)
 
 ##
 int
-update_packedevent(pv, status, value, maxsev)
+update_event(pv, status, value, maxsev)
 	EVENT *pv;
 	int   status;
 	unsigned long value;
@@ -181,10 +173,52 @@ update_packedevent(pv, status, value, maxsev)
 	RETVAL
 
 
+##
+int
+eventlog(pv)
+	EVENT *pv;
+  CODE:
+  {
+	RETVAL = eventlog(pv);
+  }
+  OUTPUT:
+	RETVAL
+
+#
+#      calc_status()
+# Useful to extract the status and maximum severity in monitors which
+# have 3 thresholds. Given the three thresholds and the value, it returns
+# the 'status, thres, maxseverity' as a list.
+#
+# 	($status, $thres, $maxsev) = calc_status(...)
+#
+void
+calc_status(val, warnt, errt, critt)
+	unsigned long  val;
+	unsigned long  warnt;
+	unsigned long  errt;
+	unsigned long  critt;
+  PREINIT:
+	int status, maxseverity, incr;
+	unsigned long  thres;
+
+  PPCODE:
+  {
+	if (warnt <= critt)
+		incr = 1;
+	status = calc_status(val, warnt, errt, critt, incr,
+				&thres, &maxseverity);
+	EXTEND(sp, 3);
+	PUSHs(sv_2mortal(newSViv(status)));	/* integer */
+	PUSHs(sv_2mortal(newSVnv(thres)));	/* use double for long */
+	PUSHs(sv_2mortal(newSViv(maxseverity)));
+  }
+
+
 # Read one event from the open filehandle. Will need to unpack this
-# structure in perl.
+# structure
 EVENT *
-read_packedevent(fh)
+read_event(fh)
 	FILE *fh;
   PREINIT:
 	static EVENT v;
@@ -195,15 +229,14 @@ read_packedevent(fh)
 	  RETVAL = &v;
 	}
 	else
-	  /* ST(0) = &sv_undef; /* does not work */
-	  RETVAL = NULL;
+	  XSRETURN_UNDEF;
   }
   OUTPUT:
 	RETVAL
 
 # Write event to the open filehandle
 int
-write_packedevent(fh, pv)
+write_event(fh, pv)
 	FILE *fh;
 	EVENT *pv;
   CODE:
@@ -213,9 +246,9 @@ write_packedevent(fh, pv)
   OUTPUT:
 	RETVAL
 
-# Rewind's output file by one event, and then writes supplied event.
+# Rewind's output file by one event, and then writes given event.
 int
-rewrite_packedevent(fh, pv)
+rewrite_event(fh, pv)
 	FILE *fh;
 	EVENT *pv;
   CODE:
@@ -225,55 +258,29 @@ rewrite_packedevent(fh, pv)
   OUTPUT:
 	RETVAL
 
-# Convert a packed event into a hash.
-# FIX FIX, CHECK FOR MEMORY LEAK in 'SV' (new without freeing prev?)
-HV *
-unpack_event(pv)
-	EVENT *pv;
+# Make a duplicate of the first event. Should call 'new_event()' before
+# calling this routine.
+void
+copy_event(old, new)
+	EVENT *old;
+	EVENT *new;
   CODE:
   {
-	int i = 0;
-	static char **keyarray;
-	char **strarray;
-	static SV *sv_value;
-	static HV *hashevent ;
-
-	/* if (SvREFCNT(sv_value))
-	 * SvREFCNT_dec(sv_value);	/* free memory.. FIX */
-	if (!hashevent)
-		hashevent = newHV();
-	else
-		hv_clear(hashevent);	/* free old data */
-
-	if (!keyarray)
-		keyarray = (char **)event2strarray(NULL); /* once only */
-	strarray = (char **)event2strarray(pv);
-	for (i=0; keyarray[i] && *(keyarray[i]) ; ++i)
-	{
-		if (strarray[i] == NULL)
-			strarray[i] = "";
-		sv_value = newSVpv(strarray[i], 0);
-		hv_store(hashevent, keyarray[i], strlen(keyarray[i]),
-			  sv_value, /*hash value*/ 0);
-
-	/*	fprintf(stderr, "(debug) unpack_event() %s, %s\n",
-				 keyarray[i], strarray[i]); /* */
-	}
-	RETVAL = hashevent;
+	bcopy((void *)old, (void *)new, sizeof(EVENT));
   }
-  OUTPUT:
-	RETVAL
 
 ## Return the list of fields in the EVENT structure in the same order
 #  as the event2strarray() function returns.
+# This returns a reference to an array, so you have to dereference it
+# using @$xxx
 AV *
-get_eventfields()
+_get_eventfields()
   PREINIT:
+	int i;
+	char **keyarray;
 	static AV *av;
   CODE:
   {
-	int i;
-	char **keyarray;
 	if (! av)
 	{
 		keyarray = (char **)event2strarray(NULL);
@@ -286,26 +293,68 @@ get_eventfields()
   OUTPUT:
 	RETVAL
 
-## Cannot seem to invoke this if parameter is set to HV *. So typecasting
-#  it. FIX FIX FIX
-# Typical Usage:
-#	$event = snips::new_packedevent();
-#	$ea =    snips::unpack_event($event);
-#	$event = snips::pack_event($ea); OR pack_event(\%hash);
-EVENT *
-pack_event(eventhash)
-	SV *eventhash;
-
+# Convert a packed event into a hash. Return's a hash reference, so the
+# calling routine has to dereference it.
+#	$hashref = _unpack_event($event);
+#	%event = %$hashref;	# dereference
+#
+HV *
+_unpack_event(pv)
+	EVENT *pv;
+  PREINIT:
+	int i = 0;
+	static char **keyarray;
+	char **strarray;
+	static SV *sv_value;
+	static HV *hashevent;
   CODE:
   {
+	if (!hashevent)
+		hashevent = newHV();
+	else
+		hv_clear(hashevent);	/* free's old data */
+
+	if (!keyarray)
+		keyarray = (char **)event2strarray(NULL); /* once only */
+	strarray = (char **)event2strarray(pv);
+	for (i=0; keyarray[i] && *(keyarray[i]) ; ++i)
+	{
+		if (strarray[i] == NULL)
+			strarray[i] = "";
+		sv_value = newSVpv(strarray[i], 0);	/* malloc memory */
+		hv_store(hashevent, keyarray[i], strlen(keyarray[i]),
+			  sv_value, /*hash value*/ 0);
+
+	/*	fprintf(stderr, "(debug) unpack_event() %s, %s\n",
+				 keyarray[i], strarray[i]); /* */
+	}
+	RETVAL = hashevent;
+  }
+  OUTPUT:
+	RETVAL
+
+## Cannot seem to invoke this if argument is set to HV *. So typecasting
+#  it.
+# Typical Usage:
+#	$event1 = snips::new_event();
+#	%event1 = snips::unpack_event($event1);
+#	$event2 = snips::_pack_event(\%event1);
+EVENT *
+_pack_event(eventhash)
+	SV *eventhash;
+  PREINIT:
 	int i = 0;
 	static char **keyarray;
 	char *strarray[64];	/* assuming max 64 fields in EVENT */
 	SV **sv;
-	EVENT v;
 	HV *hv;
-
-	hv = (HV *)SvRV(eventhash);	/* extract reference */
+  CODE:
+  {
+	hv = (HV *)NULL;
+	if (SvROK(eventhash))
+	  hv = (HV *)SvRV(eventhash); 	/* extract reference */
+	if (hv == NULL)
+		XSRETURN_UNDEF ;
 
 	if (!keyarray)
 		keyarray = (char **)event2strarray(NULL);
@@ -315,14 +364,13 @@ pack_event(eventhash)
 		sv = hv_fetch(hv, keyarray[i], strlen(keyarray[i]), FALSE);
 		if (sv)
 		{
-			char *s;
-			s = (char *)SvPV(*sv, na);
-			printf("fetched %s for %s\n", s, keyarray[i]);
+			strarray[i] = (char *)SvPV(*sv, PL_na);
+		/*	printf("_pack_event() - fetched %s for key %s\n",
+				strarray[i], keyarray[i]); /* */
 		}
 	}
-	fprintf(stderr, "TO BE COMPLETED\n");
 
-	RETVAL = &v;
+	RETVAL = (EVENT *)strarray2event(strarray);
   }
   OUTPUT:
 	RETVAL
