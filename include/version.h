@@ -24,6 +24,6 @@
 
 #ifndef _SNIPSVERSION_
 # define _SNIPSVERSION_
-  static char snips_version[] = "1.0" ;
+  static char snips_version[] = "1.1 2001/08/01" ;
 #endif
 
