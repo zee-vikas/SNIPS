@@ -151,9 +151,11 @@ sub set_userlevel {
     my $referer = (split('\?', $ENV{'HTTP_REFERER'}))[0];
     $referer = "NoHost" if (! $referer);
     if (grep (/^${referer}$/, @OK_REFERER) > 0 &&
-        $FORM{'userlevel'} ne "" && $FORM{'user'} ne "") 
+        $FORM{'userlevel'} ne "" && $FORM{'user'} ne "")
     {
       $userlevel = int($FORM{'userlevel'});
+      print STDERR "set_userlevel() HTTP_REFERER = $referer listed in OK_REFERER,",
+	"permitting and userlevel = $userlevel\n" if ($ldebug);
       return;
     }
   }
@@ -172,6 +174,8 @@ sub set_userlevel {
 	$userlevel = int($file_userlevel);
 	$FORM{'userlevel'} = $file_userlevel;
 	close(AUTH);
+	print STDERR "set_userlevel() REMOTE_USER = $user authenticated using .htaccess,",
+	  "userlevel = $userlevel\n" if ($ldebug);
 	return;
       }
     }
@@ -179,9 +183,15 @@ sub set_userlevel {
   }
 
   # See if our cookie is set, check and use that
-  &print_auth_form if ($ENV{'HTTP_COOKIE'} eq "");	# if no cookie
+  my (%cookievars) = ();
+  foreach (split(/\s*;\s*/, $ENV{'HTTP_COOKIE'})) {
+    chomp;
+    my($var, $val) = split('=');
+    $cookievars{$var} = $val;
+  }
+  &print_auth_form if (! defined $cookievars{'snipsauth'} );   # if no cookie
   open(COOKIE, "< $cookiefile") || &print_auth_form;
-  my $cookie = (split(';', $ENV{'HTTP_COOKIE'}))[0];	# remove trailing hostid
+  my $cookie = $cookievars{'snipsauth'};
   while (<COOKIE>) {
     if (/^$cookie\:/)
     {
@@ -189,6 +199,8 @@ sub set_userlevel {
       $FORM{'user'} = $file_user;
       $userlevel = int($file_userlevel);
       $FORM{'userlevel'} = $file_userlevel;
+      print STDERR "set_userlevel() cookie = $cookie, ",
+	"userlevel set to $userlevel\n" if ($ldebug);
       close(COOKIE);
       return;
     }
@@ -197,6 +209,7 @@ sub set_userlevel {
 
   # if we reach here, we need to get the user's information since he/she
   # was not authenticated by httpd or with a valid cookie
+  print STDERR "set_userlevel() user not authenticated\n" if ($ldebug);
   &print_auth_form;
   return;
 }	# authcheck()
@@ -246,7 +259,7 @@ sub doAuthenticate {
   my $newcookie = $localtime ^ $$ ^ $ENV{'REMOTE_PORT'};
   $newcookie .= "snips";
   # header string used by '&print_button_header'
-  $cookiehdr = "Set-Cookie: $newcookie; path=$snipsweb_cgi;";
+  $cookiehdr = "Set-Cookie: snipsauth=$newcookie; path=$snipsweb_cgi;";
 
   my @cookies;
   if (open(COOKIE, "< $cookiefile")) {
@@ -386,6 +399,7 @@ sub print_footer {
 
   if ($ldebug > 2 && $userlevel < 3) {
     print "<!-- debug output -->\n";
+    print "<hr><h3>DEBUG OUTPUT</h3>\n";
     print "<p><b>Current userlevel = $userlevel</b> </p>";
     print "<p><h4>FORM Variables</h4>\n";
     for (keys %FORM) { print "<tt>$_ = $FORM{$_} </tt><br>" ;}
@@ -687,13 +701,31 @@ sub doTroubleShoot {
 
   ##
   ## Now generate the form
+  if ($deviceaddr && $deviceaddr ne '-') {
+    $devicename = $deviceaddr;
+  }
+  $traceroute =~ s/DEVICE/$devicename/ ;	# replace keyword with name
+  $ping =~ s/DEVICE/$devicename/;
+  $nslookup =~ s/DEVICE/$devicename/;
+
   print "\t<FORM action=\"$snipsweb_cgi\" method=\"post\">\n";
   &print_state_info;
   print <<TROUBLESHOOT;
 	<input type=hidden name=command value="$command">
-	<P><input type=submit name=subcommand value="traceroute"> <tt>$traceroute</tt>
-	<P><input type=submit name=subcommand value="ping"> <tt>$ping</tt>
-	<P><input type=submit name=subcommand value="nslookup"> <tt>$nslookup</tt>
+	<table cellspacing="0" cellpadding="5" border=0>
+	  <tr><td align="right">
+	   <input type=submit name=subcommand value="traceroute"></td>
+	   <td align="left"><tt>$traceroute</tt></td>
+	  </tr>
+	  <tr><td align="right">
+	   <input type=submit name=subcommand value="nslookup"></td>
+	   <td align="left"><tt>$nslookup</tt></td>
+	  </tr>
+	  <tr><td align="right">
+	   <input type=submit name=subcommand value="ping"></td>
+	   <td align="left"><tt>$ping</tt></td>
+	  </tr>
+	</table>
 	</FORM>
 TROUBLESHOOT
 
@@ -789,32 +821,30 @@ sub aboutSnips {
 
   print <<EOHELP;
 
-   <center><H2>Network Operations Center On-Line</H2>
-     <HR width=60% align=center>
+   <center><H2>Systems &amp; Network Integrated Polling Software</H2>
+     <HR width="60%" align="center">
    </center>
 
 <A href="http://www.netplex-tech.com/software/snips/">SNIPS
-(System and Network Integrated Polling Software) </A> is a network monitoring 
+(System and Network Integrated Polling Software) </A> is a network monitoring
 package that runs on Unix platforms and capable of monitoring network and
 system variables such as ICMP or RPC reachability, RMON variables,
 nameservers, ethernet load, port reachability, host performance, SNMP traps,
 radius, NTP, modem line usage, appletalk & novell routes/services, BGP peers,
-etc. 
-There is just one set of monitoring agents and <em>any</em> number of 
-display agents, and all
-of the displays see the same consistent set of data.
-Additionally, each event
-is assigned a severity (determined by comparing against user defined threshold
-values) which is gradually escalated, thus preventing false alarms and a
-customized priority notification based on the severity. There are four
-severity levels ranging from Critical thru Info, and each event typically
-steps through each one of these severities until it reaches its maximum
-allowed level.
+etc.
+There is just one set of monitoring agents and <em>any</em> number of
+display agents, and all of the displays see the same consistent set of data.
+Additionally, each event is assigned a severity (determined by comparing
+against user defined threshold values) which is gradually escalated, thus
+preventing false alarms and a customized priority notification based on
+the severity. There are four severity levels ranging from Critical thru Info,
+and each event typically steps through each one of these severities until
+it reaches its maximum allowed level.
 <P>
-This display uses a dynamically generated web page and so can display on a 
+This display uses a dynamically generated web page and so can display on a
 variety of terminals. The user running the display can select the minimum
 display severity--only events above this minimum severity level are displayed.
-If you\'re running a Netscape-compatible web browser, the display will 
+If you\'re running a Netscape-compatible web browser, the display will
 automatically update itself every minute.
 <P>
 More information about snips is available
@@ -823,9 +853,9 @@ More information about snips is available
 SNIPS was written by:
 <BLOCKQUOTE>Vikas Aggarwal
 <BR><a href="mailto:vikas\@navya.com">vikas\@navya.com</a>
-<BR>December 1994
+<BR>March, 2001
 </BLOCKQUOTE>
-This web interface was written by:
+This web interface was originally written for NOCOL by:
 <BLOCKQUOTE>Rick Beebe
 <BR><a href="mailto:richard.beebe\@yale.edu">richard.beebe\@yale.edu</a>
 <BR>March, 1998
