@@ -115,7 +115,7 @@ snips.tar:
 	 fi ;\
 	 echo "Creating list of exclude files and directories" ;\
 	 for i in $(DIST) ; do \
-	  find $$i \( -name RCS -o -name '*~' \) -print >>$$TEMPD/XCLUDEFILES;\
+	  find $$i \( -name RCS -o -name CVS -o -name '*~' \) -print >>$$TEMPD/XCLUDEFILES;\
 	 done ;\
 	 for i in $(NOTDIST) ; do \
 		echo "$$i" >> $$TEMPD/XCLUDEFILES ;\
