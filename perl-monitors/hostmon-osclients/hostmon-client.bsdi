@@ -284,12 +284,8 @@ sub vmstat {
   # if any CPU time is 100, vmstat doesnt have any spaces in it.
   # s/100(\s+\d+){0,2}\s*$/ 100\1/;
   
-  # In freebsd, the processes are always 2 fields (%2d%2d%2d)
-  # and the space before avm can get lost. Hence taking 2 fields
-  # for each process...
   ###   procs   #  avm  #  fre  #  flt   # re  #   pi  #   po  # disks #    cs   #   us  #  sy  #  id   ######
-  if (/^(..){3}\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)(\s+\d+)+\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*$/)
-  {
+  if (/^(\s*\d+){3}\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)(\s+\d+)+\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*$/)  {
     printf "MemFree %d MB\n", int($3 / 1024); # convert KB to MB
     print "PageFlt $4 pgflts\n";
     print "PageRe $5 pages/sec\n";
