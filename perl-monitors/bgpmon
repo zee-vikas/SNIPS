@@ -1,4 +1,4 @@
-#!/usr/local/bin/perl -w
+#!/usr/local/bin/perl
 #
 # $Header$
 #
@@ -119,6 +119,7 @@ sub readconf {
     }
     elsif ($keyword =~ /^ROUTER_DEF$/i) {  # router name, type, addr, pass
       my($name, $type, $address, $pass, $user) = split(/\s+/, $parms);
+      $user = "" if (! $user);	# username is optional
       $router{$name} = "$type\t$address\t$pass\t$user";
       $debug && print "$0: new router ($name) is a $type ($address)\n";
 
@@ -199,18 +200,18 @@ sub get_bgp_status {
       my($num_status, $num_ip, $num_as) = split(/\,/, $arrayref);
 
       foreach my $buffer (@BUFFER) {
-        chomp;
-        $buffer =~ s/^\s+//g;
+        chomp $buffer;
+        $buffer =~ s/^\s+//g;	# remove all starting spaces
         $buffer =~ s/\t+/ /g;
         $buffer =~ s/\s+/ /g;
         my(@fields) = split(/ /, $buffer);
         my($status) = $fields[$num_status];
         my($ipref) = $fields[$num_ip];
-        my($asref) = sprintf("%6d", $fields[$num_as]);
+        my($asref) = sprintf("%6d", $fields[$num_as]);  # messy formatting
         $asref =~ s/ /0/g;
         $ascache{$ipref} = $asref;
         if ($ipref =~ /(\d+\.\d+\.\d+\.\d+)/) { $ipref = $1; } else { next; }
-        $debug && print "$0: status of $ipref: $status\n";
+        $debug && print "$0: status of $ipref: $status (AS $asref)\n";
         $peerstatus{"$peer_router\t$ipref"} = 0;
         foreach(split(/\,/, $up)) {
 	  if ($status =~ /^$_$/i) {$peerstatus{"$peer_router\t$ipref"} = 1;}
@@ -294,7 +295,7 @@ sub updatepeers {
     my($num_status, $num_ip, $num_as) = split(/\,/, $arrayref);
     my ($status, $ipref, $asref);
     foreach $buffer (@BUFFER) {
-      chomp;
+      chomp $buffer;
       $buffer =~ s/^\s+//g;
       $buffer =~ s/\t+/ /g;
       $buffer =~ s/\s+/ /g;
