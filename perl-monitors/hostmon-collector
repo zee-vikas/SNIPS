@@ -46,7 +46,7 @@ use strict;
 use vars qw ( 
 	     $debug $snipsroot $etcdir
 	     $TMPDATADIR $HOSTMON_SERVICE $HOSTMON_PORT $RCP
-	     $rcp $ping $rpcping $ostype @hosts $sleeptime $prognm
+	     $ping $rpcping $ostype @hosts $sleeptime $prognm
 	     $childpid @childpids
 	    );
 
@@ -75,7 +75,6 @@ $HOSTMON_PORT = 5355 unless $HOSTMON_PORT; # default port if not in services
 if (!$ping) {$ping = `which ping`; chop $ping;}  # SET_THIS
 $rpcping = "rpcping" unless $rpcping ;		# set in snipslib.pl
 
-$RCP = "$rcp" if $rcp;		# set to rcp or scp
 #$RCP = "scp -q -B";	# scp in quiet & batch mode
 $RCP = `which rcp` unless $RCP; chomp $RCP;
 
@@ -247,6 +246,8 @@ sub try_scp {
   my ($host, $dfile) = @_;
 
   return undef if (! $host);
+  return undef if ($RCP =~ /NULL/i || $RCP =~ /NONE/i);
+
   $debug && print STDERR "(debug)) $0: try_scp() to $host\n";
   if ($RCP =~ /rcp/i) {
 #    return undef if ( &doping($host) <= 0 ); FIX
