@@ -41,7 +41,7 @@
  */
 #define	MAX_DUP_CHK	8192
 #define MAXREMOTE	1024
-#define INTERPKTGAP	10	/* milliseconds */
+#define INTERPKTGAP	50	/* milliseconds */
 
 /*
  * Define a structure to keep track internally of the various remote sites
