@@ -62,7 +62,7 @@ sub pstat {
     my $filemax = `cat /proc/sys/kernel/file-max`;       
     printf "FileTable %d %%used\n", int($filenr * 100 / $filemax);
   }
-  else if (-f "/proc/sys/fs/file-nr") {	# newer kernels
+  elsif (-f "/proc/sys/fs/file-nr") {	# newer kernels
     my ($filealloc, $filenr, $filemax) = 
       split (/\s+/,`cat /proc/sys/fs/file-nr`);
     printf "FileTable %d %%used\n", int($filenr * 100 / $filemax);
@@ -253,33 +253,23 @@ sub vmstat {
 # eth0   1500   0 459404      0      0      0 689947      0      0      0 BRU
 # 
 sub netstat {
-  my $i = 0;
-  my $flag = 0;			# flag indicates whether we should collect deltas
+  my $i = -1;
   my $cmd = "netstat -i -c";
-  my $header ="";
-  # for storing deltas
-  my ($ipkts, $opkts, $iepkts, $oepkts) = (0, 0, 0, 0);
-  # used to accumulate interface pkts for each iteration
-  my ($ip, $op, $iep, $oep) = (0, 0, 0, 0);
-  
+
+  my (@ip, @op, @iep, @oep) = (0, 0, 0, 0);
   my $pid = open (CMD, "$cmd |");
   while (<CMD>) {
+    chomp;
     $debug && print STDERR "(debug)netstat: $_" ;
-    # we have to take exactly two samples to calculate delta values
-    if ($i == 0 && $header eq "") { $header = $_; next;} #1
-    elsif ($header =~ $_) { ++$i; $flag = !$flag; next;} #2
-    if ($flag)			# get the deltas
+    # we take the 1st and 5th samples.
+    if (/^Iface/) { ++$i; next; }
+    next if ($i == 1 || $i == 2 || $i == 3);	# skip intermediate samples
+    if ($i == 5)		# got samples, print result and quit
     {
-      $ipkts = $ip - $ipkts; $ip = 0;
-      $opkts = $op - $opkts; $op = 0;
-      $iepkts = $iep - $iepkts; $iep = 0;
-      $oepkts = $oep - $oepkts; $oep = 0;
-      $flag = !$flag;
-      $debug && print STDERR "\nRX-OK(D) $ipkts  RX-ERR(D) $iepkts  TX-OK(D) $opkts  TX-ERR(D) $oepkts";
-    }
-    
-    if ($i == 2)		# got samples, print result and quit
-    {
+      my $ipkts = $ip[4] - $ip[0];
+      my $opkts = $op[4] - $op[0];
+      my $iepkts = $iep[4] - $iep[0];
+      my $oepkts = $oep[4] - $oep[0];
       kill ('TERM', $pid); 
       # now print accumulated packet info
       if ($ipkts == 0) { $ipkts = 1;} # avoid division by zero
@@ -288,14 +278,13 @@ sub netstat {
       printf "NetOErr %d PktRate\n", int ($oepkts * 100 / $opkts);
       last; 
     }
-    chomp;
     
     if (/^\s*\S+(\s+\d+)*\s+(\d+)\s+(\d+)\s+\d+\s+\d+\s+(\d+)\s+(\d+)\s+\d+\s+\d+\s+\S+\s*$/)
     {
-      $ip += $2;		# add packets for all interfaces
-      $op += $4;
-      $iep += $3;
-      $oep += $5;
+      $ip[$i] += $2;		# add packets for all interfaces
+      $op[$i] += $4;
+      $iep[$i] += $3;
+      $oep[$i] += $5;
       next;			# get next interface
     }
   }	
