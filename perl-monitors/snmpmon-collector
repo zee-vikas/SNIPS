@@ -300,7 +300,7 @@ sub procdata_rmon {
 	$varalias =~ s/Octets/BW/ ;
 	foreach (@deltarate) {
 	  ++$i;
-	  print "$varalias %d VALUE Net_$i\n",
+	  printf "$varalias %d VALUE Net_$i\n",
 	  int(($_ * 8 * 100) / 10000000); # percentage Mbits per sec
 	}
       }
