@@ -60,7 +60,7 @@
 #   This script was distributed as part of the SNIPS package.
 #
 # INSTALLATION:
-#	- Edit $snipsroot/etc/snipsweb.conf  for customizable options.
+#	- Edit $snipsroot/etc/snipsweb-confg  for customizable options.
 # 	- Put this in your CGI-BIN directory. If you put it in some other
 #	  location, you must update the value of $snipsweb_cgi.
 #	- Create a null $updatesfile $cookiefile and ensure that both are
@@ -87,31 +87,32 @@
 # Remember to create the $updatesfile and the $authfile and also the
 # help files.
 
+# Global variables.
+use strict;
+use vars qw (
+	     $snipsroot $etcdir $snipsweb_cgi $rrdgraph_cgi $logfile
+	     $helpdir $updatesfile $authfile $cookiefile $debug $ldebug
+	     $command $sitename $siteaddr $variable $done_footer
+	     $userlevel $cookiehdr $RRD_DBDIR
+	     @OK_REFERER %FORM
+	    );
+BEGIN {
+  $snipsroot = "/usr/local/snips"  unless $snipsroot;	# SET_THIS
+  push (@INC, "$snipsroot/etc"); push (@INC, "$snipsroot/bin");
+  require  "snipsperl.conf" ;		# local customizations
+  require  "snipsweb-confg";	# all WEB configurable options
+}
 
-# The Makefile will edit the $snipsroot.
-$snipsroot = "/usr/local/snips"  unless $snipsroot;	# SET_THIS
-$etcdir  = "$snipsroot/etc";
-$bindir  = "$snipsroot/bin";
-push(@INC, $bindir); push(@INC, $etcdir);
-
-require "snipsweb.conf";		# sets most customizable options
-
-# check functions allowed in &doTroubleshoot() subroutine below.
-
-##
-##### no normal customizations below this ######
-##
+# CHECK functions allowed in &doTroubleshoot() subroutine below.
 
 #$snipsweb_cgi = "http://www.host.com/cgi-bin/snipsweb.cgi";
 $snipsweb_cgi = "/cgi-bin/snipsweb.cgi" unless $snipsweb_cgi;
 $rrdgraph_cgi = "/cgi-bin/rrdgraph.cgi" unless $rrdgraph_cgi;
-
 # this should be the info level snipslogd log file.
 $logfile = "$snipsroot/logs/info";		# CHECK_this
 
 # if you have RRDtool installed. Comment out if not needed.
 # This invokes the 'graph' option.
-$RRD_DEFINED = "";			# SET_THIS to non-empty to enable
 $RRD_DBDIR = "$snipsroot/rrddata";	# SET_THIS to dir of rrd data files
 
 ## For security, set OK_REFERER to the URL of snipsweb.cgi. This script
@@ -121,77 +122,14 @@ $RRD_DBDIR = "$snipsroot/rrddata";	# SET_THIS to dir of rrd data files
 #@OK_REFERER = ($snipsweb_cgi,
 #	       "http://localhost/cgi-bin/snipsweb.cgi",
 #	       "http://www.host.com/cgi-bin/snipsweb.cgi");	# SET_THIS
+@OK_REFERER = () unless @OK_REFERER;
 
-local ($helpdir) = "$snipsroot/device-help";	# dir for device help files
-local ($updatesfile) = "$etcdir/updates";	# all update messages
-local ($authfile) = "$snipsroot/etc/webusers";	# user:passwd:userlevel
-local ($cookiefile) = "$snipsroot/etc/webcookies";
+$helpdir = "$snipsroot/device-help";	# dir for device help files
+$updatesfile = "$etcdir/updates";	# all update messages
+$authfile = "$snipsroot/etc/webusers";	# user:passwd:userlevel
+$cookiefile = "$snipsroot/etc/webcookies";
 
-local($ldebug) = 0;		# debugging flag, max level 5
 $ldebug = $debug if ($debug);
-
-
-#####
-##### No customizations should be required below this
-#####
-
-# Check that the POST method is used
-if ($ENV{'REQUEST_METHOD'} eq 'POST') {
-    # POST method dicatates that we get the form input
-    # from standard input
-    read(STDIN, $buffer, $ENV{'CONTENT_LENGTH'});
-}
-else {
-    $buffer = $ENV{'QUERY_STRING'};
-}	
-
-# Split the the name-value pairs on &
-@pairs = split(/&/,$buffer);
-
-foreach $pair (@pairs) {
-    ($name, $value) = split(/=/, $pair);
-    $value =~ tr/+/ /;
-    # Now convert any HTML'ized characters into their real world
-    # equivalent. e.g. a %20 becomes a space. 
-    $value =~ s/%([a-fA-F0-9][a-fA-F0-9])/pack("C", hex($1))/eg;
-    $FORM{$name} = $value;
-}
-## Now all the form variables are in the $FORM associative array
-
-local ($command)  = $FORM{'command'};	# what we are supposed to do
-local ($sitename) = $FORM{'sitename'};
-local ($siteaddr) = $FORM{'siteaddr'};
-local ($variable) = $FORM{'variable'};
-
-local ($done_footer) = 0;	# boolean flag
-
-# Maintain a $userfile to set these (see sub authcheck() ). Lower number is
-# higher priority. Basic level is '9'.
-local ($userlevel) = 9;			# default authority is basic-level
-
-## we dont need any userlevel for these following commands
-if    ($command =~ /^Authenticate/i) { &doAuthenticate; exit 0; }
-elsif ($command =~ /^About/i) { &aboutSnips; exit 0; }	# generic blurb
-elsif ($command =~ /^Help/i)  { &aboutSnips; exit 0; }	# generic blurb
-elsif ($command =~ /^UserHelp/i)  { &aboutSnips; exit 0; } # user level help
-elsif ($command =~ /^SnipsView/i)  { &restoreView; exit 0; }# snips display
-
-&set_userlevel;		# get and set the user privelege level
-
-if    ($command =~ /^SiteHelp/i) { &doSiteHelp; }	# show site Help
-elsif ($command =~ /^Update/i)  { &doUpdates; }	# maintain 'updates' file
-elsif ($command =~ /^History/i) { &doHistory; }	# snipslogd logs
-elsif ($command =~ /^Device\s+Logs/i)    { &doHistory; }      # snipslogd logs
-elsif ($command =~ /^Troubleshoot/i) { &doTroubleShoot; }
-elsif ($command =~ /^Graphs/i) { &doGraph; }	# using RRD
-else { &restoreView; }	# show snips screen
-
-&print_footer;
-exit 0;
-
-##################
-##################
-##################
 
 #------------------------------------------------------------
 ## Look in authfile for username and determine userlevel. Format of 
@@ -210,7 +148,7 @@ sub set_userlevel {
   if (@OK_REFERER) {
     # quick and fast,, however the HTTP_REFERER needs to be trimmed
     # before checking.
-    local ($referer) = (split('\?', $ENV{'HTTP_REFERER'}))[0];
+    my $referer = (split('\?', $ENV{'HTTP_REFERER'}))[0];
     $referer = "NoHost" if (! $referer);
     if (grep (/^${referer}$/, @OK_REFERER) > 0 &&
         $FORM{'userlevel'} ne "" && $FORM{'user'} ne "") 
@@ -222,7 +160,7 @@ sub set_userlevel {
 
   if ($ENV{'REMOTE_USER'} ne "")	# user already authenticated by httpd
   {
-    local ($user) = $ENV{'REMOTE_USER'};
+    my $user = $ENV{'REMOTE_USER'};
     $FORM{'user'} = $ENV{'REMOTE_USER'};
     if (! open (AUTH, "< $authfile")) {
       &denyAccess("Cannot open $authfile $!, please contact site admin\n");
@@ -230,7 +168,7 @@ sub set_userlevel {
     while (<AUTH>) {
       if (/^$user\:/)
       {
-	local ($junk, $junk, $file_userlevel) = split /:/;
+	my ($junk, $junk, $file_userlevel) = split /:/;
 	$userlevel = int($file_userlevel);
 	$FORM{'userlevel'} = $file_userlevel;
 	close(AUTH);
@@ -243,11 +181,11 @@ sub set_userlevel {
   # See if our cookie is set, check and use that
   &print_auth_form if ($ENV{'HTTP_COOKIE'} eq "");	# if no cookie
   open(COOKIE, "< $cookiefile") || &print_auth_form;
-  local ($cookie) = (split(';', $ENV{'HTTP_COOKIE'}))[0];	# remove trailing hostid
+  my $cookie = (split(';', $ENV{'HTTP_COOKIE'}))[0];	# remove trailing hostid
   while (<COOKIE>) {
     if (/^$cookie\:/)
     {
-      local ($file_cookie, $file_user, $file_userlevel, $file_age) = split /:/;
+      my ($file_cookie, $file_user, $file_userlevel, $file_age) = split /:/;
       $FORM{'user'} = $file_user;
       $userlevel = int($file_userlevel);
       $FORM{'userlevel'} = $file_userlevel;
@@ -268,10 +206,10 @@ sub set_userlevel {
 #  Store the cookie in $cookiefile. Also expire old cookies while
 #  we are working with the cookie file.
 sub doAuthenticate {
-  local ($user) = $FORM{'user'};
-  local ($found) = 0;
-  local ($localtime) = time;
-  local ($max_cookie_age) = 86400;	# delete if one day old
+  my $user = $FORM{'user'};
+  my $found = 0;
+  my $localtime = time;
+  my $max_cookie_age = 86400;	# delete if one day old
 
   if ($FORM{'subcommand'} eq "Cancel") { &restoreView; exit 0; }
 
@@ -280,7 +218,7 @@ sub doAuthenticate {
   while (<AUTH>)
   {
     next if (! /^$user\:/);
-    local ($file_user, $file_passwd, $file_userlevel) = split /:/;
+    my ($file_user, $file_passwd, $file_userlevel) = split /:/;
     if ($file_passwd eq "")
     {
       $userlevel = int($file_userlevel);
@@ -288,8 +226,8 @@ sub doAuthenticate {
     }
     else
     {
-      local ($salt) = substr($file_passwd, 0, 2);
-      local ($encrypt_pass) = crypt($FORM{'password'}, $salt);
+      my $salt = substr($file_passwd, 0, 2);
+      my $encrypt_pass = crypt($FORM{'password'}, $salt);
       if ($encrypt_pass eq $file_passwd)
       {
 	$userlevel = int($file_userlevel);
@@ -305,12 +243,12 @@ sub doAuthenticate {
   if (!$found) { &print_auth_form; }
 
   ## now generate a cookie and store in the cookie file
-  local ($newcookie) = $localtime ^ $$ ^ $ENV{'REMOTE_PORT'};
+  my $newcookie = $localtime ^ $$ ^ $ENV{'REMOTE_PORT'};
   $newcookie .= "snips";
   # header string used by '&print_button_header'
   $cookiehdr = "Set-Cookie: $newcookie; path=$snipsweb_cgi;";
 
-  local (@cookies);
+  my @cookies;
   if (open(COOKIE, "< $cookiefile")) {
     @cookies = <COOKIE>;	# slurp into memory
     close (COOKIE);
@@ -334,7 +272,7 @@ sub doAuthenticate {
     chop;
     # skip comments and blank lines
     if (/^\s*\#/ || /^\s*$/) { print COOKIE; next; }
-    local ($file_cookie, $file_user, $file_userlevel, $file_age) = split /:/;
+    my ($file_cookie, $file_user, $file_userlevel, $file_age) = split /:/;
     next if ($file_age + $max_cookie_age < $localtime);
     print COOKIE "$file_cookie:$file_user:$file_userlevel:$file_age\n";
   }
@@ -378,7 +316,7 @@ EoXa
 #------------------------------------------------------------
 ## print deny message and exit.
 sub denyAccess {
-  local ($denymesg) = @_;
+  my ($denymesg) = @_;
 
   if ($denymesg =~ /^\s*$/) {
     $denymesg = "Command $command not permitted for $FORM{'user'} at user level $userlevel";
@@ -442,7 +380,7 @@ EoHeaderb
 #
 sub print_footer {
   return if ($done_footer == 1);
-  local ($foot) = "$helpdir" . "/stdfoot";
+  my $foot = "$helpdir" . "/stdfoot";
   print "\n<P> <!-- begin stdfoot -->\n";
   if (open(FILE, "< $foot")) { print while (<FILE>) ; }
 
@@ -470,7 +408,7 @@ sub print_state_info {
 	 <input type=hidden name=sender value="$FORM{'sender'}">
 	 <input type=hidden name=user value="$FORM{'user'}">
 	 <input type=hidden name=userlevel value="$FORM{'userlevel'}">
-	 <input type=hidden name=return value="$FORM{'return'}">
+	 <input type=hidden name=restoreurl value="$FORM{'restoreurl'}">
 	 <input type=hidden name=displaylevel value="$FORM{'displaylevel'}">
 EoState
 }
@@ -481,8 +419,8 @@ EoState
 # If a file is not found for a device, we'll display the file "default:type"
 # or just 'default'.
 sub doSiteHelp {
-  local ($helpfile);
-  local ($sender)   = $FORM{'sender'};
+  my $helpfile;
+  my $sender   = $FORM{'sender'};
 
   &denyAccess if ($userlevel > 4);
   &print_button_header();
@@ -514,9 +452,9 @@ sub doSiteHelp {
 #
 sub doHistory {
 
-  local ($cnt) = 1;
-  local ($str);
-  local (@rowcolor) = ("#CCCC99", "#D8D8D8");
+  my $cnt = 1;
+  my $str;
+  my @rowcolor = ("#CCCC99", "#D8D8D8");
 
   &denyAccess if ($userlevel > 3);
   &print_button_header();
@@ -562,8 +500,8 @@ sub doHistory {
 # Edit the updatesFile (used to add a comment or hide a particular site
 # from the display.
 sub doUpdates {
-  local ($explain) = '';
-  local ($ishideChecked) = '';
+  my ($junk, $explain) = (undef, '');
+  my $ishideChecked = '';
 
   &denyAccess if ($userlevel > 1);
 
@@ -637,11 +575,11 @@ sub updateStatus {
       return;
   }
 
-  local ($newstatus) = $FORM{'status'};
+  my $newstatus = $FORM{'status'};
   $newstatus =~ s/^\s+// ;
   if ($newstatus eq "" && ! $FORM{'Hide'}) { $FORM{'subcommand'} = "clear"; }
 
-  local (@list) = <SFILE>;	# slurp into memory
+  my @list = <SFILE>;	# slurp into memory
   close (SFILE);
   if (! open (SFILE, ">> $updatesfile") ) {
     print "<h4> Sorry, error writing $updatesfile - $! </h4>\n";
@@ -689,14 +627,14 @@ sub updateStatus {
 # e.g. on Sun's use '/usr/sbin/ping -s DEVICE 500 3' if you are not using
 # multiping
 sub doTroubleShoot {
-  local ($traceroute) = "traceroute -m 15 DEVICE";
-  local ($ping) = "$snipsroot/bin/multiping -c 3 -i 2 DEVICE";	# CHECK_this
-  local ($nslookup) = "nslookup -query=any DEVICE";
-  local ($nslookup) = ($siteaddr =~ /^[\d\.]+$/) ?
+  my $traceroute = "traceroute -m 15 DEVICE";
+  my $ping = "$snipsroot/bin/multiping -c 3 -i 2 DEVICE";	# CHECK_this
+  my $nslookup = "nslookup -query=any DEVICE";
+  $nslookup = ($siteaddr =~ /^[\d\.]+$/) ?
                          "nslookup DEVICE" : "nslookup -query=any DEVICE";
 
-  local ($subcmd);
-  local (%cmdlist) = ("ping", $ping, "traceroute", $traceroute,
+  my $subcmd;
+  my %cmdlist = ("ping", $ping, "traceroute", $traceroute,
 		  "nslookup", $nslookup);
 
   &denyAccess if ($userlevel > 2);
@@ -712,8 +650,8 @@ sub doTroubleShoot {
   ($subcmd = $FORM{'subcommand'}) =~ tr/A-Z/a-z/;	# lowercase
   if ($subcmd ne "")
   {
-    local ($cmd) = $cmdlist{$subcmd};
-    local ($linecnt) = 0;	# to prevent runaway commands
+    my $cmd = $cmdlist{$subcmd};
+    my $linecnt = 0;	# to prevent runaway commands
 
     print "debug ($subcmd) Trying $cmd $siteaddr<br>" if $ldebug;
     if ($cmd) {
@@ -759,30 +697,31 @@ TROUBLESHOOT
 
 #------------------------------------------------------------
 ## graphs (using $rrdgraph_cgi)
-# Currently we look in the subdir $RRD_DBDIR/$sitename and generate
+# Currently we look in the subdir $RRD_DBDIR/$siteaddr and generate
 # a GIF for all the variables in that subdir. We should ideally only
 # need to generate the gif for the particular variable.
 #
 sub doGraph {
-  local ($rrddir, $rrdfile);
+  my ($rrddir, $rrdfile);
 
   &denyAccess if ($userlevel > 2);
   &print_button_header;
 
-  if ($RRD_DEFINED eq "" || $rrdgraph_cgi eq "")
+  if (! defined($rrdgraph_cgi) || $rrdgraph_cgi eq "")
   {
     print "<h4> RRD not supported </h4>";
     return;
   }
   return if ($sitename eq "" || $RRD_DBDIR eq "");
 
- $rrddir = "$RRD_DBDIR/" . substr($sitename, 0, 1) . "/$sitename";
+  # Location of the RRD files
+  $rrddir = "$RRD_DBDIR/" . substr($siteaddr, 0, 1) . "/$siteaddr";
 
-  print "<center><H3>$sitename : $siteaddr</H3>\n";
-  print "  <hr width=\"50\%\" align=center>\n</center>\n";
+  print "<center><H3>$sitename : $siteaddr</H3>\n",
+        "  <hr width=\"50\%\" align=center>\n</center>\n";
   print <<Eof1;
    <p>Click
-    <A href="${rrdgraph_cgi}?rrdsubdir=$sitename&title=${sitename}"> HERE </A>
+    <A href="${rrdgraph_cgi}?rrdsubdir=$siteaddr&title=${sitename}"> HERE </A>
       to display <b>all variables </b>for $sitename\n</p>
    <p> Click on the image to display <b>historical</b> data for the variable</p>
 Eof1
@@ -792,19 +731,19 @@ Eof1
     return;
   }
     
-  local (@rrdfiles) = `ls *.rrd`;
+  my @rrdfiles = `ls *.rrd`;
   for $rrdfile (@rrdfiles)
   {
     chomp $rrdfile;
     #$sitename =~ tr/[a-zA-Z0-9_.\-]//cd;	# strip unwanted characters
-    local ($var) = $rrdfile;
+    my $var = $rrdfile;
     $var =~ s/\.rrd$//;
     next if (($variable ne "") && ($var ne $variable)); # only for $variable
     $var =~ tr/[a-zA-Z0-9_.\-]//cd;
     print <<Eof;
     <h4>${var}</h4>
-    <A href="${rrdgraph_cgi}?rrdsubdir=$sitename&rrdfile=${rrdfile}&title=${sitename}&legend=${var}&timescale=A&mode=html">
-    <IMG SRC="${rrdgraph_cgi}?rrdsubdir=$sitename&rrdfile=${rrdfile}&title=${sitename}%20(${var})&legend=${var}&timescale=d&mode=gif" >
+    <A href="${rrdgraph_cgi}?rrdsubdir=$siteaddr&rrdfile=${rrdfile}&title=${sitename}&legend=${var}&timescale=A&mode=html">
+    <IMG SRC="${rrdgraph_cgi}?rrdsubdir=$siteaddr&rrdfile=${rrdfile}&title=${sitename}%20(${var})&legend=${var}&timescale=d&mode=gif" >
     </A>
     <hr>
 Eof
@@ -821,7 +760,7 @@ sub restoreView {
   print "Content-type: text/html\n\n";
   print <<ReSTORE;
   <html> <head>
-    <meta http-equiv="refresh" content="0;URL=$FORM{'return'}">
+    <meta http-equiv="refresh" content="0;URL=$FORM{'restoreurl'}">
     <title>SNIPS</title>
    <head>
    <body> <h2>Please wait as screen reloads...</h2> </body>
@@ -890,4 +829,63 @@ EOHELP
 &print_footer();
 
 }
+
+#####
+##### main
+#####
+
+my ($buffer, @pairs);
+# Check that the POST method is used
+if ($ENV{'REQUEST_METHOD'} eq 'POST') {
+  # POST method dicatates that we get the form input
+  # from standard input
+  read(STDIN, $buffer, $ENV{'CONTENT_LENGTH'});
+}
+else {
+  $buffer = $ENV{'QUERY_STRING'};
+}	
+
+# Split the the name-value pairs on &
+@pairs = split(/&/, $buffer);
+
+foreach my $pair (@pairs) {
+  my ($name, $value) = split(/=/, $pair);
+  $value =~ tr/+/ /;
+  # Now convert any HTML'ized characters into their real world
+  # equivalent. e.g. a %20 becomes a space. 
+  $value =~ s/%([a-fA-F0-9][a-fA-F0-9])/pack("C", hex($1))/eg;
+  $FORM{$name} = $value;
+}
+## Now all the form variables are in the $FORM associative array
+
+$command  = $FORM{'command'};	# what we are supposed to do
+$sitename = $FORM{'sitename'};
+$siteaddr = $FORM{'siteaddr'};
+$variable = $FORM{'variable'};
+
+$done_footer = 0;	# boolean flag
+
+# Maintain a $userfile to set these (see sub authcheck() ). Lower number is
+# higher priority. Basic level is '9'.
+$userlevel = 9;			# default authority is basic-level
+
+## we dont need any userlevel for these following commands
+if    ($command =~ /^Authenticate/i) { &doAuthenticate; exit 0; }
+elsif ($command =~ /^About/i) { &aboutSnips; exit 0; }	# generic blurb
+elsif ($command =~ /^Help/i)  { &aboutSnips; exit 0; }	# generic blurb
+elsif ($command =~ /^UserHelp/i)  { &aboutSnips; exit 0; } # user level help
+elsif ($command =~ /^SnipsView/i)  { &restoreView; exit 0; }# snips display
+
+&set_userlevel;		# get and set the user privelege level
+
+if    ($command =~ /^SiteHelp/i) { &doSiteHelp; }	# show site Help
+elsif ($command =~ /^Update/i)  { &doUpdates; }	# maintain 'updates' file
+elsif ($command =~ /^History/i) { &doHistory; }	# snipslogd logs
+elsif ($command =~ /^Device\s+Logs/i)    { &doHistory; }      # snipslogd logs
+elsif ($command =~ /^Troubleshoot/i) { &doTroubleShoot; }
+elsif ($command =~ /^Graphs/i) { &doGraph; }	# using RRD
+else { &restoreView; }	# show snips screen
+
+&print_footer;
+exit 0;
 

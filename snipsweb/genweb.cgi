@@ -1,5 +1,5 @@
-#!/usr/local/bin/perl 
-my $vcid = '$Id$ ';#
+#!/usr/local/bin/perl
+my $versionid = '$Id$ ';#
 
 # ------------
 # This program displays SNIPS events in HTML format (for an alternative
@@ -76,8 +76,8 @@ my $vcid = '$Id$ ';#
 # INSTALLATION
 # ------------
 #
-# 1. Customize variables in snipsweb-cfg.pl
-# 2. Create a '/snips/etc/updates' file with the owner being the user who
+# 1. Customize variables in snipsweb-confg
+# 2. Create a '$snipsroot/etc/updates' file with the owner being the user who
 #    will run this script since this script will delete entries once a device
 #    comes back up. If running as a CGI, the owner should be the httpd process.
 # 3. Install the snipsweb.cgi CGI script in your CGI directory. If installing
@@ -106,19 +106,25 @@ my $vcid = '$Id$ ';#
 #
 #########################################################################
 
-my $VERSIONSTR = "1.0";			# version
-# Global variables. 
+my $SNIPSVERSION = "1.0";			# version
+# Global variables.
+use strict;
 use vars qw (
 	     $baseurl $webdir $snipsweb_cgi $sound $snipsroot $imageurl $etcdir
 	     $bindir $datadir $msgsdir $updatesfile @views $view
              %view2severity $newevents $neweventAge
 	     @level_color @level_imgs $emptyimg $tfontsize $max_table_rows
-	     %updates $q $refresh $large_refresh $my_url $prognm @z1
+	     %updates $thiscgi $refresh $large_refresh $my_url $prognm @z1
              $sec $min $hour $mday $mon $year $weekday $yrday $daylite
 	     $debug @row_data $cgimode $filter_cgi $gen_cgi_links $myStyle
+	     $numcols $userViewUpdates
 	    );
-
-$snipsroot = "/usr/local/snips"  unless $snipsroot;	# SET_THIS
+BEGIN {
+  $snipsroot = "/usr/local/snips"  unless $snipsroot;	# SET_THIS
+  push (@INC, "$snipsroot/etc"); push (@INC, "$snipsroot/bin");
+  require  "snipsperl.conf" ;		# local customizations
+  require  "snipsweb-confg";	# all WEB configurable options
+}
 
 init();
 read_status_file($updatesfile);
@@ -128,52 +134,7 @@ process_parameters();
 my $entries = 1;
 
 if (! $cgimode) { gen_html_files(); }	# never returns
-
-foreach my $dfile (@dfiles) {
-  get_row_data($dfile);
-}
-sort_rows();
-print_http_header($refresh);
-print_html_prologue($refresh);
-print_column_headers();
-print_row_data();
-
-if (@row_data > $max_table_rows) {
-  print "\n</PRE>\n";
-}
-else {
-  # Print a helpful message if there's nothing wrong
-  if ($entries == 1) {
-    my $msg = "All Devices are OK!";
-    $msg = "No monitors running?" if (! @dfiles);
-    print "<TR><TD colspan=$numcols align=center bgcolor=\"\#CCCC99\">\n";
-    print "<br><H3>$msg</H3>";
-    print "</TD></TR>\n";
-  }
-  
-  print "<TR><TD  height=5></TD></TR>\n"; # vertical space
-  print "</TABLE>\n";
-}
-
-print_msgs();		# stuff from msgs directory
-
-if ($newevents > 0) {
-  if ($sound) {
-    print "
-<EMBED src=\"$sound\" 
-       TYPE=\"audio/x-wav\"
-       autostart=true hidden=true loop=FALSE>\n";
-    #print "<NO EMBED><bgsound=\"$sound\" loop=1></NO EMBED>\n"; # for IE
-  }
-  print "<P>$newevents new events (less than $neweventAge minutes old)</P>\n";
-}
-
-show_config($q) if ($cgimode) ; # if in CGI mode, display parameters
-
-print_footer();	# closing stuff
-
-exit 0;
-
+else { gen_html_cgimode(); }
 
 
 #------------------------------------------------------------
@@ -182,25 +143,21 @@ sub init {
   use CGI;
   use URI;
   use URI::Escape;
+  use SNIPS;
 
   $etcdir  = "$snipsroot/etc"  unless $etcdir;	# location of config file
   $bindir  = "$snipsroot/bin"  unless $bindir;
   $datadir = "$snipsroot/data" unless $datadir;
   $msgsdir = "$snipsroot/msgs" unless $msgsdir;
   
-  push(@INC, $bindir); push(@INC, $etcdir); # add to search paths for 'require'
+  # push(@INC, $bindir); push(@INC, $etcdir); # add to search paths for 'require'
   
-  require  "snipslib.pl";			# snips perl library
-  require  "$etcdir/snipsweb-cfg.pl";		# all configurable options
-
-  # we have to append a trailing '/' in baseurl if it is specified.
-  $baseurl .= "/" 
-    if !defined($baseurl) || $baseurl ne "" && ! ($baseurl =~ /\/$/);
+  $baseurl =~ s|/\s*$||;	  # strip trailing '/' in baseurl
   
   # url for accessing the various snips images. Don't make it 'images' since
   # it usually gets mapped by the httpd daemon.
-  $imageurl = "${baseurl}gifs/";  # check. Note baseurl has trailing /
-  $imageurl .= "/" if ($imageurl ne "" && ! ($imageurl =~ /\/$/));
+  $imageurl = "${baseurl}/gifs";  # check.
+  $imageurl =~ s|/\s*$||;	  # strip trailing '/' in imageurl
   
   # 'updatesfile' is the full path to the file containing update messages
   # Since this file is updated via the web (snipsweb.cgi), this file should
@@ -215,21 +172,23 @@ sub init {
   %view2severity = ( User => 1, Critical => 1, Error => 2, Warning => 3,
 		     Info => 4 );
   @level_color = ("", "Red", "Blue", "Brown", "Black");
-  @level_imgs  = ("", "${imageurl}redsq.gif", "${imageurl}bluesq.gif",
-		     "${imageurl}yellowsq.gif", "${imageurl}greensq.gif");
+  @level_imgs  = ("", "${imageurl}/redsq.gif", "${imageurl}/bluesq.gif",
+		     "${imageurl}/yellowsq.gif", "${imageurl}/greensq.gif");
   
   ## These gif images are provided with snips. Put them in your httpd directory
   #  tree under $baseurl/images/
-  $emptyimg = "${imageurl}empty.gif";
+  $emptyimg = "${imageurl}/empty.gif";
   $newevents = 0;
 
-  if (defined($ENV{'SERVER_NAME'})) { $cgimode = 1;}
-  else { $cgimode = 0; $gen_cgi_links = 0; }
+  if (! defined($cgimode)) {
+    if (defined($ENV{'SERVER_NAME'})) { $cgimode = 1;}
+    else { $cgimode = 0; $gen_cgi_links = 0; }
+  }
 
   @z1 = ('00' .. '59');	# To convert single digit minutes -> 08
 
-  $q = new CGI;
-  $my_url = $q->self_url;
+  $thiscgi = new CGI;
+  $my_url = $thiscgi->self_url;
   $my_url =~ s/;/&/g;
 
   $debug = 0 unless $debug;
@@ -285,24 +244,24 @@ sub get_datafile_names {
 #------------------------------------------------------------
 ##
 sub process_parameters {
-  $view=$q->param('view');
+  $view=$thiscgi->param('view');
 #  $view = 'User' if !defined($view);
 
   # Did we specify a sound to play? If so, what sound? 
-  my $s=$q->param('sound');
+  my $s=$thiscgi->param('sound');
   $sound=$s if defined($s) && $s ne '' && $s ne 'no' ;
 
-  my $d=$q->param('debug');
+  my $d=$thiscgi->param('debug');
   $debug=1 if defined($d) && $d ;
   
   # Did we specify a refresh rate? If so what values?
-  my $r=$q->param('refresh');
+  my $r=$thiscgi->param('refresh');
   if (defined($r) && $r =~ /\d+/) {
-    $refresh = $q->param('refresh');
+    $refresh = $thiscgi->param('refresh');
   }
-
+  $refresh = 30 if ($refresh < 30);	# minimum
   # Did we specify compact Info format? 
-  my $m=$q->param('maxrows');
+  my $m=$thiscgi->param('maxrows');
   $max_table_rows=$m if defined($m);
   
 }	# process_parameters()
@@ -319,7 +278,7 @@ sub print_http_header {
   my ($my_refresh) = @_;
   $my_refresh = $large_refresh if (@row_data > $max_table_rows);
 
-  print $q->header(-Refresh=>"$my_refresh; URL=$my_url", -expires=>'now');
+  print $thiscgi->header(-Refresh=>"$my_refresh; URL=$my_url", -expires=>'now');
 }
 
 #------------------------------------------------------------
@@ -336,15 +295,15 @@ sub print_html_prologue {
   $mon++;
   $year += 1900;	# fix y2k problem
 
-  $today = "$z1[$mon]/$z1[$mday]/$year  $hour:$z1[$min]";  # MMDDYY, US-centric
-  #$today = "$year/$z1[$mon]/$z1[$mday]  $hour:$z1[$min]";  # YYMMDD
-  $cursecs = time;	# get Unix timestamp
-  my $refresh_url = $cgimode ? "$my_url" : "${baseurl}${view}.html" ;
+  my $today = "$z1[$mon]/$z1[$mday]/$year  $hour:$z1[$min]";  # MMDDYY, US-centric
+  #my $today = "$year/$z1[$mon]/$z1[$mday]  $hour:$z1[$min]";  # YYMMDD
+  my $cursecs = time;	# get Unix timestamp
+  my $refresh_url = $cgimode ? "$my_url" : "${baseurl}/${view}.html" ;
 
-  print $q->start_html(-title=>"SNIPS - $action view", 
+  print $thiscgi->start_html(-title=>"SNIPS - $action view", 
 		       -head=>[
 			       "<META HTTP-EQUIV=\"REFRESH\" CONTENT=\"$my_refresh;URL=$refresh_url\">",
-			       "<META HTTP-EQUIV=\"PRAGMA\" CONTENT=\"NO-CACHE\">"
+##			       "<META HTTP-EQUIV=\"PRAGMA\" CONTENT=\"NO-CACHE\">"
 			      ],
 ##		       -style=>{-code=>$myStyle},
 
@@ -353,8 +312,8 @@ sub print_html_prologue {
                        -vlink=>"#003366",
                        -alink=>"#003366"
                       ), "\n";
-  print $q->comment("Generated by $vcid"), "\n";
-  # print $q->comment("FUNCTION ------- print_html_prologue"), "\n";
+  print $thiscgi->comment("Generated by $versionid"), "\n";
+  # print $thiscgi->comment("FUNCTION ------- print_html_prologue"), "\n";
 
   print <<EOT;
     <!-- title banner -->
@@ -430,7 +389,7 @@ EOT1
       }
       else {
 	print "<TD valign=middle>
-               <FORM action=\"${baseurl}${v}.html\" method=\"get\">
+               <FORM action=\"${baseurl}/${v}.html\" method=\"get\">
                 <input type=submit name=view value=\"$v\">
                </FORM> </TD>\n";
       }
@@ -449,13 +408,13 @@ EOT1
       <TD width=50>&nbsp;</TD>
       <TD valign=middle><FORM action=\"$snipsweb_cgi\" method=\"post\">
         <input type=submit name=command value=\"Help\">
-        <input type=hidden name=return value=\"$esc_url\"></FORM>
+        <input type=hidden name=restoreurl value=\"$esc_url\"></FORM>
     ";
     foreach ( qw(view refresh sound sort maxrows namepat varpat monpat
 		 filepat altprint)) { 
-      my $p =$q->param($_);
+      my $p =$thiscgi->param($_);
       next if !defined($p) || $p eq '' || $p eq 'no';
-      print $q->hidden(-name => $_, -value=>$q->param($_));
+      print $thiscgi->hidden(-name => $_, -value=>$thiscgi->param($_));
     }
     print "</TD>
       </TR>
@@ -471,7 +430,7 @@ EOT1
    <P align="right">
    <FORM action="$snipsweb_cgi" method="get">
        <input type=submit name=command value="UserHelp">
-       <input type=hidden name=return value="$esc_url">
+       <input type=hidden name=restoreurl value="$esc_url">
    </FORM> </P>
 EOT1a
   }	# if-else (admin-mode)
@@ -483,7 +442,7 @@ EOT1a
 # If data rows are going to be in tabular form, we print out the
 # table header too.
 sub print_column_headers {
-  #print $q->comment("FUNCTION --- print_column_headers"), "\n";
+  #print $thiscgi->comment("FUNCTION --- print_column_headers"), "\n";
   my @fields = ('', '#', 'Status', 'Device Name', 'Address', 
 		'Variable / Value', 'Down At', 'Monitor');
   
@@ -491,11 +450,10 @@ sub print_column_headers {
     if (is_admin_mode() == 1 || $userViewUpdates);
   
   $numcols = ($#fields + 1) * 2;
-
   
   if ($max_table_rows == -1 || @row_data > $max_table_rows)  {	
     # Print status in a compact format
-    print $q->comment('     --- main data table --'), "\n";
+    print $thiscgi->comment('     --- main data table --'), "\n";
     print "     <PRE> <b>\n";
     printf "%4s %1.1s  %14s %15s  %12s %9s %11s %-12s %s\n",
         '#', 'S', 'Device Name ', 'Address  ',
@@ -513,15 +471,15 @@ sub print_column_headers {
      <TR bgcolor="#FFFFFF">
 EOT2
   
-    foreach $field (@fields) {
-      $field =~ s@\/@<br>&nbsp;\/@g ; # split words onto two separate lines
-      print <<EOT2a;
+  foreach my $field (@fields) {
+    $field =~ s@\/@<br>&nbsp;\/@g ; # split words onto two separate lines
+    print <<EOT2a;
       <td nowrap align=center><font face="arial,helvetica" size="$tfontsize"> &nbsp;
        <b>$field</b>  &nbsp;     </font></td>
       <td bgcolor="#AAAAAA" width=1>
 	  <img src=\'$emptyimg\' alt="."></td>  <!-- thin vertical divider -->
 EOT2a
-    }	# foreach $field
+  }	# foreach $field
   
   print <<EOT2b;
     </TR>
@@ -540,65 +498,46 @@ EOT2b
 #  Filename filtering and event filtering is also done here.
 sub get_row_data {
   my ($dfile) = @_;
-  my $namepat   = $q->param('namepat');
-  my $varpat    = $q->param('varpat');
-  my $monpat    = $q->param('monpat');
-  my $filepat   = $q->param('filepat');
+  my $namepat   = $thiscgi->param('namepat');
+  my $varpat    = $thiscgi->param('varpat');
+  my $monpat    = $thiscgi->param('monpat');
+  my $filepat   = $thiscgi->param('filepat');
+  my $event;
 
   my $file=$dfile;
   $file =~ s/-output//;
   return if ($filepat ne "" && $file !~ /$filepat/);
-  if (!open (INPUT, "<$datadir/$dfile")) {
-    logerr("cannot open $dfile for reading: $!");
+
+  my $datafd = open_datafile("$datadir/$dfile", "r");
+  if (!defined($datafd)) {
+    logerr("cannot open $dfile for reading");
     return;
   }
-  &read_dataversion(INPUT);	# skip past first record
 
   # process lines of data file.
-  while ( readevent(INPUT, 1) ) {
+  while ( ($event = read_event($datafd)) ) {
 
-    # A whole bunch of global variables were set a and stored with
-    # index 1 by readevent().
-    # Save them elsewhere.
-    my %r;
-    $r{file}=$file;	# store the filename also
-    $r{sender} = $sender{1};
-    $r{sitename} = $sitename{1};
-    $r{siteaddr} = $siteaddr{1};
-    $r{varname} = $varname{1};
-    $r{varvalue} = $varvalue{1};
-    $r{varthres} = $varthres{1};
-    $r{varunits} = $varunits{1};
-    $r{mon} = $mon{1};   $r{day} = $day{1};
-    $r{hour} = $hour{1}; $r{min} = $min{1};
-    $r{severity} = $severity{1};
-    $r{loglevel} = $loglevel{1};
-    $r{nocop} = $nocop{1};
-
-      ## clean up the sitename, etc.
-      # $sitename =~ tr/a-zA-Z0-9._\-\(\)//cd;
-    $r{sitename} =~ tr/\000//d;
-    $r{siteaddr} =~ tr/\000//d;
-    $r{varname}   =~ tr/\000//d;
+    my %ev = unpack_event($event);
+    $ev{file}=$file;	# store the filename also
     
-    my $update = $updates{"$r{sitename}:$r{siteaddr}:$r{varname}"};
-    #if ($update eq "") {$update = $updates{"$r{sitename}:$r{siteaddr}"}; }
-    #if ($update eq "") {$update = $updates{"$r{sitename"}; }
+    my $update = $updates{"$ev{site_name}:$ev{'siteaddr'}:$ev{'varname'}"};
+    #if ($update eq "") {$update = $updates{"$ev{site_name}:$ev{site_addr}"}; }
+    #if ($update eq "") {$update = $updates{"$ev{site.name"}; }
     
     # If device is no longer critical, remove its status information
-    if (($r{severity} > 1) && $update) {
-      &remove_updates_entry($r{sitename}, $r{siteaddr}, $r{varname});
+    if (($ev{severity} > 1) && $update) {
+      &remove_updates_entry($ev{site_name}, $ev{site_addr}, $ev{var_name});
     }
     
     # Are we interested in this event?
-    next if (defined($namepat) && $r{sitename} !~ /$namepat/);
-    next if (defined($varpat)  && $r{varname}  !~ /$varpat/);
-    next if (defined($monpat)  && $r{sender}   !~ /$monpat/);
+    next if (defined($namepat) && $ev{site_name} !~ /$namepat/);
+    next if (defined($varpat)  && $ev{var_name}  !~ /$varpat/);
+    next if (defined($monpat)  && $ev{sender}   !~ /$monpat/);
     
-    if ( (! $view) || $r{severity} <= $view2severity{$view}) {
+    if ( (! $view) || $ev{severity} <= $view2severity{$view}) {
       # Yep, we want this event.
-      select_sound($r{severity});
-      push @row_data, \%r;	# stores the entire assoc array
+      select_sound($ev{severity});
+      push @row_data, \%ev;	# stores the entire assoc array
       ++$entries ;
     }
   }	# while ( readevent() )
@@ -609,22 +548,22 @@ sub get_row_data {
 #------------------------------------------------------------
 ## Sort the entire @row_data  list of events.
 sub sort_rows {
-  my $sort = $q->param('sort');
+  my $sort = $thiscgi->param('sort');
   return if (! defined($sort));
 
   my @ordering = split(/,/, $sort);
   while (@ordering) {
-    $order = pop @ordering;
+    my $order = pop @ordering;
     if ($order eq 'name') {
-      @row_data = sort { $a->{sitename} cmp $b->{sitename} } @row_data;
+      @row_data = sort { $a->{site_name} cmp $b->{site_name} } @row_data;
     } elsif ($order eq 'severe') {
       @row_data = sort { $a->{severity} cmp $b->{severity} } @row_data;
     } elsif ($order eq 'varname') {
-      @row_data = sort { $a->{varname} cmp $b->{varname} } @row_data;
+      @row_data = sort { $a->{var_name} cmp $b->{var_name} } @row_data;
     } elsif ($order eq 'siteaddr') {
-      @row_data = sort { $a->{siteaddr} cmp $b->{siteaddr} } @row_data;
+      @row_data = sort { $a->{site_addr} cmp $b->{site_addr} } @row_data;
     } elsif ($order eq 'varvalue') {
-      @row_data = sort { $a->{varvalue} cmp $b->{varvalue} } @row_data;
+      @row_data = sort { $a->{var_value} cmp $b->{var_value} } @row_data;
     } elsif ($order eq 'monitor') {
       @row_data = sort { $a->{sender} cmp $b->{sender} } @row_data;
     }
@@ -637,16 +576,16 @@ sub sort_rows {
 #
 sub print_row_data {
 
-  print $q->comment("--- Start of real data rows --"), "\n";
+  print $thiscgi->comment("--- Start of real data rows --"), "\n";
 
-  my $np = $q->param('altprint');
+  my $np = $thiscgi->param('altprint');
   my $print_routine = defined($np) && $np ne 'no' ? 
       \&print_row_new : \&print_row_old;
 
   # Dump out processed rows...
   my $i=1;
-  foreach $r (@row_data) {
-    &$print_routine($r, $i++);  
+  foreach my $ev (@row_data) {
+    &$print_routine($ev, $i++);  
   }
 }
 
@@ -659,48 +598,47 @@ sub print_row_data {
 #  the size of the data file is small.
 #
 sub print_row_old {
-  my ($r, $entry_count) = @_;
+  my ($ev, $entry_count) = @_;
   my $ifnewbg = "";	# new background if new event
   my $ADMINMODE = is_admin_mode();
   my @rowcolor = ("#FFFFcc", "#D8D8D8");	# alternating row colors
   my $action   = $views[$view2severity{$view}];
 
-
   # the data is already clean since the new snipslib.pl uses 'A' to unpack
   # which strips out all the nulls.
   # &clean_data($i);	# delete unwanted characters (not needed anymore)
 
-  my $update = ($updates{"$r->{sitename}:$r->{siteaddr}:$r->{varname}"} 
+  my $update = ($updates{"$ev->{site_name}:$ev->{site_addr}:$ev->{var_name}"} 
 		or '') ;
-  #if ($update eq "") {$update = $updates{"$r->{sitename}:$r->{siteaddr}"}; }
-  #if ($update eq "") {$update = $updates{"$r->{sitename}"}; }
+  #if ($update eq "") {$update = $updates{"$ev->{site_name}:$ev->{site_addr}"}; }
+  #if ($update eq "") {$update = $updates{"$ev->{site_name}"}; }
 
   # hide if Critical display
   return if $update =~ /^\(H\)/ && $action eq 'Critical';
 
   my $esc_url = uri_escape($my_url);
   my $siteHREF = "<A HREF=\"$snipsweb_cgi?displaylevel=$action";
-  $siteHREF .= "&sitename=$r->{sitename}&siteaddr=$r->{siteaddr}";
-  $siteHREF .= "&variable=$r->{varname}&sender=$r->{sender}";
+  $siteHREF .= "&sitename=$ev->{site_name}&siteaddr=$ev->{site_addr}";
+  $siteHREF .= "&variable=$ev->{var_name}&sender=$ev->{sender}";
   $siteHREF .= "&command=Updates&return=$esc_url\">";
 
   if ($max_table_rows == -1 || @row_data > $max_table_rows) {
     # need to put the href in front of the sitename, but we dont want
     # the sitename to be prepended with underlined blanks. i.e. convert
     #   '<a href="xx">   site</a>'  INTO  '  <a href="xx">site</a>'
-    my $site = sprintf "%-14.14s", $r->{sitename}; # printing size
+    my $site = sprintf "%-14.14s", $ev->{site_name}; # printing size
     $site =~ s|(\S+)|$siteHREF$1</a>| ;
     printf "%4d %1.1s  %s %-15.15s  %12.12s= %8lu %02d/%02d %02d:%02d %-12s %s\n",
-      $entry_count, $views[$r->{severity}], $site,
-      $r->{siteaddr}, $r->{varname}, $r->{varvalue},
-      $r->{mon},$r->{day},$r->{hour},$z1[$r->{min}], $r->{sender}, 
+      $entry_count, $views[$ev->{severity}], $site,
+      $ev->{site_addr}, $ev->{var_name}, $ev->{var_value},
+      $ev->{mon},$ev->{day},$ev->{hour},$z1[$ev->{min}], $ev->{sender}, 
       $update;
     return;
   }
 
   ## see if this is a recent event (less than $neweventAge minutes old)
-  if ($mon == $r->{mon} && $mday == $r->{day} &&
-      (($hour * 60) + $min) - (($r->{hour} * 60) + $r->{min}) < $neweventAge)
+  if ($mon == $ev->{mon} && $mday == $ev->{day} &&
+      (($hour * 60) + $min) - (($ev->{hour} * 60) + $ev->{min}) < $neweventAge)
   {
     ++$newevents;			# total displayed in Messages
     $ifnewbg = "bgcolor=yellow";	# background of the little button
@@ -715,32 +653,32 @@ sub print_row_old {
   print "<TR bgcolor=\"$rowcolor[$entry_count % 2]\">\n";
   print "<td $ifnewbg><font>";
   if ($ADMINMODE) { print "$siteHREF"; }
-  print "<img src=\"$level_imgs[$r->{severity}]\" alt=\"\" border=\"0\">";
+  print "<img src=\"$level_imgs[$ev->{severity}]\" alt=\"\" border=\"0\">";
   if ($ADMINMODE) { print "</a>"; }
   print $tdend;
 
-  my $sitename = $r->{sitename};
+  my $sitename = $ev->{site_name};
   if ($ADMINMODE) {
     $siteHREF =~ s/command\=Updates/command\=SiteHelp/;  # change the command
-    $sitename = "$siteHREF" . "$r->{sitename}" . "</a>";
+    $sitename = "$siteHREF" . "$ev->{site_name}" . "</a>";
   }
 
   print <<EoRow ;
     $tdstart $entry_count $tdend
-    $tdstart $views[$r->{severity}]  $tdend
+    $tdstart $views[$ev->{severity}]  $tdend
     $tdstart $sitename $tdend
-    $tdstart $r->{siteaddr} $tdend
+    $tdstart $ev->{site_addr} $tdend
 
     <td nowrap align=right><font face="arial,helvetica" size="$tfontsize">
-    &nbsp; $r->{varname}= $r->{varvalue} &nbsp;
+    &nbsp; $ev->{var_name}= $ev->{var_value} &nbsp;
     $tdend
 
     <td nowrap align=right $ifnewbg><font face="arial,helvetica" size="$tfontsize">
-    $r->{mon}/$r->{day} $r->{hour}:$z1[$r->{min}]  $tdend
+    $ev->{mon}/$ev->{day} $ev->{hour}:$z1[$ev->{min}]  $tdend
 EoRow
 
   print "
-     $tdstart $r->{sender} $tdend
+     $tdstart $ev->{sender} $tdend
 ";
   if ($ADMINMODE || $userViewUpdates) {
     print "$tdstart $update $tdend"; 
@@ -757,7 +695,7 @@ EoRow
 #
 sub print_row_new
 {
-  my  ($r, $entry_count) = @_;
+  my  ($ev, $entry_count) = @_;
   my  $ifnewbg = '';  # new background if new event
   my  $ADMINMODE = is_admin_mode();
   my  $RED    =   '#FF0000';
@@ -785,44 +723,44 @@ sub print_row_new
   # which strips out all the nulls.
   # &clean_data($i);	# delete unwanted characters (not needed anymore)
   
-  my $update = ($updates{"$r->{sitename}:$r->{siteaddr}:$r->{varname}"} 
+  my $update = ($updates{"$ev->{site_name}:$ev->{site_addr}:$ev->{var_name}"} 
 		or '') ;
-  #if ($update eq "") {$update = $updates{"$r->sitename:$r->siteaddr"}; }
-  #if ($update eq "") {$update = $updates{"$r->sitename"}; }
+  #if ($update eq "") {$update = $updates{"$ev->sitename:$ev->siteaddr"}; }
+  #if ($update eq "") {$update = $updates{"$ev->sitename"}; }
   
   # hide if Critical display
   return if $update =~ /^\(H\)/ && $action eq 'Critical';
 
   my $esc_url = uri_escape($my_url);
   my $siteHREF = "<A HREF=\"$snipsweb_cgi?displaylevel=$action";
-  $siteHREF .= "&sitename=$r->{sitename}&siteaddr=$r->{siteaddr}";
-  $siteHREF .= "&variable=$r->{varname}&sender=$r->{sender}";
+  $siteHREF .= "&sitename=$ev->{site_name}&siteaddr=$ev->{site_addr}";
+  $siteHREF .= "&variable=$ev->{var_name}&sender=$ev->{sender}";
   $siteHREF .= "&command=Updates&return=$esc_url\">";
 
   if ($max_table_rows == -1 || @row_data > $max_table_rows) {
     # need to put the href in front of the sitename, but we dont want
     # the sitename to be prepended with underlined blanks. i.e. convert
     #   '<a href="xx">   site</a>'  INTO  '  <a href="xx">site</a>'
-    my $site = sprintf "%-14.14s", $r->{sitename}; # printing size
+    my $site = sprintf "%-14.14s", $ev->{site_name}; # printing size
     $site =~ s|(\S+)|$siteHREF$1</a>| ;
     printf "%4d %1.1s %s %-15.15s  %12.12s=%9lu %02d/%02d %02d:%02d %-12s %s\n",
-      $entry_count, $views[$r->{severity}], $site,
-      $r->{siteaddr}, $r->{varname}, $r->{varvalue},
-      $r->{mon},$r->{day},$r->{hour},$z1[$r->{min}], $r->{sender}, 
+      $entry_count, $views[$ev->{severity}], $site,
+      $ev->{site_addr}, $ev->{var_name}, $ev->{var_value},
+      $ev->{mon},$ev->{day},$ev->{hour},$z1[$ev->{min}], $ev->{sender}, 
       $update;
     return;
   }
 
   ## see if this is a recent event (less than $neweventAge minutes old)
-  if ($mon == $r->{mon} && $mday == $r->{day} &&
-      (($hour * 60) + $min) - (($r->{hour} * 60) + $r->{min}) < $neweventAge)
+  if ($mon == $ev->{mon} && $mday == $ev->{day} &&
+      (($hour * 60) + $min) - (($ev->{hour} * 60) + $ev->{min}) < $neweventAge)
   {
     ++$newevents;                   # total displayed in Messages
     $ifnewbg = "bgcolor=yellow";    # background of the little button
   }
   
   # construct a <font face=... size=... color=...> tag, with colour to contrast with row colour for this severity level
-  my  $font_tag   = sprintf qq (<font face="arial,helvetica" size="%s" color="%s">), $tfontsize, $textcolour[$r->{severity}-1] ;
+  my  $font_tag   = sprintf qq (<font face="arial,helvetica" size="%s" color="%s">), $tfontsize, $textcolour[$ev->{severity}-1] ;
   
   my  $tdstart    = qq(<td nowrap align="left">$font_tag &nbsp;) ,
     
@@ -832,35 +770,35 @@ sub print_row_new
   ## begin the row of data
   #   ser-no  severity  sitename  address  variable+value
   
-  print qq(<TR bgcolor="$rowcolor[$r->{severity}-1]">\n);
+  print qq(<TR bgcolor="$rowcolor[$ev->{severity}-1]">\n);
   
   print "<td $ifnewbg><font>";
   if ($ADMINMODE) { print "$siteHREF"; }
-  print qq(<img src="$level_imgs[$r->{severity}]" alt="" border="0">);
+  print qq(<img src="$level_imgs[$ev->{severity}]" alt="" border="0">);
   if ($ADMINMODE) { print "</a>"; }
   print $tdend;
   
-  my  $sitename   = $r->{sitename};
+  my  $sitename   = $ev->{site_name};
   if ($ADMINMODE) {
     $siteHREF =~ s/command\=Updates/command\=SiteHelp/;  # change the command
-    $sitename = $siteHREF . $font_tag . $r->{sitename} . '</font></a>' ;
+    $sitename = $siteHREF . $font_tag . $ev->{site_name} . '</font></a>' ;
   }
   
   print <<EoRow ;
     $tdstart $entry_count $tdend
-    $tdstart $views[$r->{severity}]  $tdend
+    $tdstart $views[$ev->{severity}]  $tdend
     $tdstart $sitename $tdend
-    $tdstart $r->{siteaddr} $tdend
+    $tdstart $ev->{site_addr} $tdend
 
     <td nowrap align=right>$font_tag
-    &nbsp; $r->{varname}= $r->{varvalue} &nbsp;
+    &nbsp; $ev->{var_name}= $ev->{var_value} &nbsp;
     $tdend
     <td nowrap align=right $ifnewbg>$font_tag
-    $r->{mon}/$r->{day} $r->{hour}:$z1[$r->{min}]  $tdend
+    $ev->{mon}/$ev->{day} $ev->{hour}:$z1[$ev->{min}]  $tdend
 EoRow
 
   print "
-     $tdstart $r->{sender} $tdend
+     $tdstart $ev->{sender} $tdend
 ";
   if ($ADMINMODE || $userViewUpdates) {
     print "$tdstart $update $tdend"; 
@@ -873,12 +811,12 @@ EoRow
 sub print_msgs {
    ## Now write out the messages from the message dir. Perhaps should be
    #  in a separate frame.
-  # print $q->comment("FUNCTION --- print_msgs"), "\n";
+  # print $thiscgi->comment("FUNCTION --- print_msgs"), "\n";
    if (opendir(MSGSDIR, "$msgsdir")) {
-     @msgfiles = grep (!/^\./, readdir(MSGSDIR) );
+     my @msgfiles = grep (!/^\./, readdir(MSGSDIR) );
      if ($#msgfiles >= 0) {
        print "<center><hr noshade width=\"100\%\"><h3>Messages</h3></center>\n"; }
-     foreach $mfile (@msgfiles)
+     foreach my $mfile (@msgfiles)
      {
        if (open(F, "< $msgsdir/$mfile"))
        {
@@ -913,10 +851,10 @@ sub show_config {
 ##
 sub print_footer {
    ## simple footer
-  # print $q->comment("FUNCTION --- print_footer"), "\n";
-  print $q->p("<hr width=\"20\%\" align=\"left\">"), "\n";
+  # print $thiscgi->comment("FUNCTION --- print_footer"), "\n";
+  print $thiscgi->p("<hr width=\"20\%\" align=\"left\">"), "\n";
   print "<font size=\"1\">
-<a href=\"http://www.netplex-tech.com/software/snips\">SNIPS- v$VERSIONSTR</a>";
+<a href=\"http://www.netplex-tech.com/software/snips\">SNIPS- v$SNIPSVERSION</a>";
    print "\n </BODY>\n</HTML>\n";
 }
 
@@ -929,11 +867,11 @@ sub print_footer {
 # confusion should that device go down at a later date.
 
 sub remove_updates_entry {
-  local ($sitename, $ipaddr, $varname) = @_;
+  my ($sitename, $ipaddr, $varname) = @_;
 
   open (SFILE, "< $updatesfile") || return; 
 
-  local (@list) = <SFILE>;	# slurp into memory
+  my  (@list) = <SFILE>;	# slurp into memory
   close (SFILE);
   # if we're not successful in opening it this time, we'll just
   # wait until the next time through.
@@ -955,9 +893,9 @@ sub remove_updates_entry {
   {
     # skip comments and blank lines
     if (/^\s*\#/ || /^\s*$/) { print SFILE; next; }
-    print "$sitename:$ipaddr:$varname<br>\n" if $verbose;
+    print "$sitename:$ipaddr:$varname<br>\n" if $debug;
     next if /^$sitename\:$ipaddr\:$varname/; # dont write out, delete
-    print "not removed<P>\n" if $verbose;
+    print "not removed<P>\n" if $debug;
     
     print SFILE;
 
@@ -991,19 +929,20 @@ sub logerr {
   my($msg) = shift;
 
   logger($msg);
-  print $q->comment("error: $msg"), "\n";
+  print $thiscgi->comment("error: $msg"), "\n";
 }
 
 #------------------------------------------------------------
 sub ooops {
   my ($msg) = @_;
+  my $action   = $views[$view2severity{$view}];
   print_http_header(300);	# refresh to 5 minutes
-  print $q->start_html(-title=>"SNIPS - $action view", 
+  print $thiscgi->start_html(-title=>"SNIPS - $action view", 
                        -type =>'text/css',
                        -bgcolor=>"#FFFFFF",
                       ), "\n";
-  print $q->comment("Generated by $vcid"), "\n";
-  print $q->h2($msg);
+  print $thiscgi->comment("Generated by $versionid"), "\n";
+  print $thiscgi->h2($msg);
   print_footer();
   exit 1;
 }
@@ -1016,18 +955,25 @@ sub ooops {
 #  files in one pass.
 sub gen_html_files {
 
+  my %fh;
   my %i = ( User => 1, Critical => 1, Error => 1, Warning => 1, Info => 1 );
   my %maxtablesize = ( User => 9999, Critical => 9999, Error => 9999,
 		    Warning => 9999, Info => -1 );
+  my %newevents = ( User => 0, Critical => 0, Error => 0, Warning => 0, Info => 0 );
 
   foreach $view (@views)
   {
-    open ($view, ">$webdir/${view}.html") ||
+    # use * notation for indirect filehandles, since strict subs complains
+    # if done any other way. FIX FIX Check if this works.
+    local *FH;
+    open (FH, ">$webdir/${view}.html") ||
       die "Cannot open output file $webdir/${view}.html $!";
-    select($view);	# default for print statements
+    #select($view);	# default for print statements
+    select(FH);
     $max_table_rows = $maxtablesize{$view};	# INFO mode not in table
     print_html_prologue($refresh);
     print_column_headers();
+    $fh{$view} = *FH;	# store the open filehandle
   }
 
   foreach my $dfile (@dfiles)
@@ -1038,16 +984,18 @@ sub gen_html_files {
 
     get_row_data($dfile);
     # print STDERR "Read $entries events from $dfile\n";
-    foreach my $r (@row_data)
+    foreach my $ev (@row_data)
     {
       foreach $view (@views)
       {
-	if ($r->{severity} <= $view2severity{$view})
+	if ($ev->{severity} <= $view2severity{$view})
 	{
-	  select $view;	# default for print statements
+	  select $fh{$view};	# default for print statements
 	  $max_table_rows = $maxtablesize{$view};   # INFO mode not in table
-	  print_row_old($r, $i{$view});
+	  print_row_old($ev, $i{$view});
 	  ++$i{$view};
+	  $newevents{$view} += $newevents;
+	  $newevents = 0;
 	}
       }	   # foreach  @views
     }	# foreach @row_data
@@ -1055,7 +1003,7 @@ sub gen_html_files {
 
 
   foreach $view (@views)  {	  # write out the closing HTML for each file
-    select $view;
+    select $fh{$view};
     if ($view eq "Info") {
       print "\n</PRE>\n";
     }
@@ -1075,7 +1023,7 @@ sub gen_html_files {
 
     print_msgs();		# stuff from msgs directory
 
-    if ($newevents > 0) {
+    if ($newevents{$view} > 0) {
       if ($sound) {
       print "
 <EMBED src=\"$sound\" 
@@ -1083,7 +1031,7 @@ sub gen_html_files {
        autostart=true hidden=true loop=FALSE>\n";
     #print "<NO EMBED><bgsound=\"$sound\" loop=1></NO EMBED>\n"; # for IE
     }
-      print "<P>$newevents new events (less than $neweventAge minutes old)</P>\n";
+      print "<P>$newevents{$view} new events (less than $neweventAge minutes old)</P>\n";
     }
 
     print_footer();	# closing stuff
@@ -1093,3 +1041,50 @@ sub gen_html_files {
   exit 0;
 
 }   # gen_html_files()
+
+#------------------------------------------------------------
+## A 'main' for cgi mode.
+sub gen_html_cgimode {
+  foreach my $dfile (@dfiles) {
+    get_row_data($dfile);
+  }
+  sort_rows();
+  print_http_header($refresh);
+  print_html_prologue($refresh);
+  print_column_headers();
+  print_row_data();
+  
+  if (@row_data > $max_table_rows) {
+    print "\n</PRE>\n";
+  }
+  else {
+    # Print a helpful message if there's nothing wrong
+    if ($entries == 1) {
+      my $msg = "All Devices are OK!";
+      $msg = "No monitors running?" if (! @dfiles);
+      print "<TR><TD colspan=$numcols align=center bgcolor=\"\#CCCC99\">\n";
+      print "<br><H3>$msg</H3>";
+      print "</TD></TR>\n";
+    }
+    print "<TR><TD  height=5></TD></TR>\n"; # vertical space
+    print "</TABLE>\n";
+  }
+  
+  print_msgs();			# stuff from msgs directory
+  
+  if ($newevents > 0) {
+    if ($sound) {
+      print "
+<EMBED src=\"$sound\" 
+       TYPE=\"audio/x-wav\"
+       autostart=true hidden=true loop=FALSE>\n";
+      #print "<NO EMBED><bgsound=\"$sound\" loop=1></NO EMBED>\n"; # for IE
+    }
+    print "<P>$newevents new events (less than $neweventAge minutes old)</P>\n";
+  }
+  
+  show_config($thiscgi);	# display parameters
+  print_footer();	# closing stuff
+
+  exit 0;
+}	# sub gen_html_cgimode()

@@ -1,4 +1,4 @@
-#!/usr/local/bin/perl -w
+#!/usr/local/bin/perl
 
 # $Header$
 #
@@ -39,10 +39,12 @@
 #
 ##
 use strict;
-use vars qw ( $snipsroot $RRDLIBDIR $RRD_DBDIR $IMAGE_CACHEDIR
+use vars qw ( $snipsroot $RRDLIBDIR $RRD_DBDIR
+	      $IMAGE_CACHEDIR $RRDIMAGE_URL_PREFIX
 	      $rrdgraph_cgi $rrd_realdir $rrdsubdir $rrdfile
 	      $title $legend $timescale $mode $comment
 	      @OK_REFERER %timestart %timelegend %cgienv
+	      $debug
 	    );
 
 BEGIN {
@@ -54,7 +56,7 @@ BEGIN {
 
 $RRDLIBDIR = "/usr/local/rrd/lib" unless $RRDLIBDIR;	# SET_THIS
 push(@INC, "$RRDLIBDIR/perl");		# location of  RRDs.pm
-require RRDs;			# Cannot use 'use' if changing @INC
+use RRDs;
 
 # where are the monitors generating RRD data
 $RRD_DBDIR =  "$snipsroot/rrddata" unless $RRD_DBDIR;	# SET_THIS
@@ -65,19 +67,16 @@ $RRD_DBDIR =  "$snipsroot/rrddata" unless $RRD_DBDIR;	# SET_THIS
 # to generate these image files offline.
 $IMAGE_CACHEDIR = "$snipsroot/rrd-imgcache" unless $IMAGE_CACHEDIR;
 
-$IMAGE_URL_PREFIX = "/rrd-images/" unless $IMAGE_URL_PREFIX;
+$RRDIMAGE_URL_PREFIX = "/rrd-images/" unless $RRDIMAGE_URL_PREFIX;
 
 # This file's URL as seen by the browser.
 $rrdgraph_cgi =  "/cgi-bin/rrdgraph.cgi" unless $rrdgraph_cgi;
 
 ## For security, set OK_REFERER to the URL of snipsweb.cgi. This script
-# will then only run if its been called from snipsweb.cgi. If using
-# .htaccess, comment out or set to empty list.
+#  will then only run if its been called from snipsweb.cgi. If using
+# .htaccess, comment out or set to empty list. See snipsweb-confg.
 #
-#@OK_REFERER = ("http://localhost/cgi-bin/snipsweb.cgi",
-#	       "http://localhost/cgi-bin/rrdgraph.cgi",
-#	       "http://www.host.com/cgi-bin/snipsweb.cgi",	# SET_THIS
-#	       "http://www.host.com/cgi-bin/rrdgraph.cgi");	# SET_THIS
+#@OK_REFERER = ( );
 
 #### NO CHANGES BELOW THIS POINT ####
 
@@ -107,7 +106,7 @@ sub check_security {
   return (1);		# permitted
 }	# sub check_security()
 
-## Get the CGI variables.
+## Get the CGI variables. Sets global %cgienv
 sub get_cgi_variables {
   my $buffer = $ENV{'QUERY_STRING'};
   my @pairs = split(/&/,$buffer);	# Split the the name-value pairs on &
@@ -122,15 +121,22 @@ sub get_cgi_variables {
 }	# sub get_cgi_variables
 
 
-## Graph all files in a sub-directory. Force to 'd' timescale
+## Graph all files in the sub-directory $rrd_realdir.
+#  Force to 'd' timescale. Generates HTML.
 #
 sub graph_all_subdir {
-  my $rfile;
-  if (! chdir($rrd_realdir)) {
-    print STDERR "Cannot chdir($rrdsubdir) $!\n";
+  my @rrdfiles;
+
+  if (opendir (REALDIR, $rrd_realdir)) {
+    @rrdfiles = grep (/.+\.rrd/i, readdir(REALDIR) );
+    closedir(REALDIR);
+  }
+  else {
+    print STDERR "Cannot chdir($rrd_realdir) $!\n";
     return;
   }
 
+  $mode = "HTML";		# force to html
   print "Content-type: text/html\n\n";    
   print <<Eof1;
   <HTML> <head> <title>SNIPS Daily Data for $title (all variables) </title></head>
@@ -142,8 +148,7 @@ Eof1
   $title =~ s/\s/\%20/g;	# replace space with %20 for URL
   $legend =~ s/\s/\%20/g;
 
-  my @rrdfiles = `ls *.rrd`;
-  for $rfile (@rrdfiles)
+  foreach my $rfile (@rrdfiles)
   {
     chomp $rfile;
     #$sitename =~ tr/[a-zA-Z0-9_.\-]//cd;	# strip unwanted characters
@@ -151,10 +156,11 @@ Eof1
     $var =~ s/\.rrd$//;
     $var =~ tr/[a-zA-Z0-9_.\-]//cd;	# remove any unwanted characters
     my $legstr = "$legend" . "%20$var";	# tack on filename to legend
+    my $imgurl = do_graph($rfile, 'd');	# generates file on disk
     print <<Eof;
     <h4>${var}</h4>
     <A href="${rrdgraph_cgi}?rrdsubdir=${rrdsubdir}&rrdfile=${rfile}&title=$title&legend=$legstr&timescale=A&mode=html">
-     <IMG SRC="${rrdgraph_cgi}?rrdsubdir=${rrdsubdir}&rrdfile=${rfile}&title=$title&legend=$legstr&timescale=d&mode=png">
+     <IMG SRC="$imgurl">
     </A>
     <hr>
 Eof
@@ -165,12 +171,13 @@ Eof
 }	# graph_all_subdir()
 
 ## Call itself recursively with all the timescales for a given $rrdfile
-#
+#  Generates html.
 sub graph_all_timescales {
   my $var = $rrdfile;
   $var =~ s/\.rrd$//;
   $var =~ tr/[a-zA-Z0-9_.\-]//cd;	# delete unwanted characters
 
+  $mode = "HTML";	# force to html
   print "Content-type: text/html\n\n";
   print <<Eof1;
   <HTML> <head> <title>SNIPS History for $title ($var)</title></head>
@@ -181,15 +188,20 @@ Eof1
   $title  =~ s/\s/\%20/g;	# replace space with %20 for URL
   $legend =~ s/\s/\%20/g;
 
+  my $imgurl_d = do_graph($rrdfile, 'd');
+  my $imgurl_w = do_graph($rrdfile, 'w');
+  my $imgurl_m = do_graph($rrdfile, 'm');
+  my $imgurl_y = do_graph($rrdfile, 'y');
+
   print <<Eof;
     <h4>Daily Statistics</h4>
-    <IMG SRC="${rrdgraph_cgi}?rrdsubdir=${rrdsubdir}&rrdfile=${rrdfile}&title=$title&legend=$legend&timescale=d&mode=png">
-    <hr><h4>Weekly Statistics</h4>
-    <IMG SRC="${rrdgraph_cgi}?rrdsubdir=${rrdsubdir}&rrdfile=${rrdfile}&title=$title&legend=$legend&timescale=w&mode=png" >
-    <hr><h4>Monthly Statistics</h4>
-    <IMG SRC="${rrdgraph_cgi}?rrdsubdir=${rrdsubdir}&rrdfile=${rrdfile}&title=$title&legend=$legend&timescale=m&mode=png" >
-    <hr><h4>Yearly Statistics</h4>
-      <IMG SRC="${rrdgraph_cgi}?rrdsubdir=${rrdsubdir}&rrdfile=${rrdfile}&title=$title&legend=$legend&timescale=y&mode=png" >
+    <IMG SRC="$imgurl_d"> <hr>
+    <h4>Weekly Statistics</h4>
+    <IMG SRC="$imgurl_w"> <hr>
+    <h4>Monthly Statistics</h4>
+    <IMG SRC="$imgurl_m"> <hr>
+    <h4>Yearly Statistics</h4>
+    <IMG SRC="$imgurl_y">
    </body>
   </HTML>
 Eof
@@ -207,10 +219,14 @@ sub check_rrdfile {
 }
 
 ####
-#### IMAGE mode
+#### Generate image
 ####
 sub do_graph {
+  my ($datafile, $tmscale) = @_;	# one of   d w m y
+  my $imgmode = "PNG";
   my $imgfile = "-";		# default generate GIF to stdout
+
+  if ($mode eq "gif") { $imgmode= "GIF"; }
 
   if ($IMAGE_CACHEDIR ne "")
   {
@@ -218,16 +234,21 @@ sub do_graph {
     $imgdir =~ s|//|/|g;
     $imgdir =~ s|/$||;
   
-    #print STDERR "Checking for image cache dir $imgdir...\n";
+    $debug && print STDERR "Checking for image cache dir $imgdir...\n";
     if ( -d $imgdir || mkdir($imgdir, 0755) && -w $imgdir)
     {
-      $imgfile = "$imgdir/$rrdfile";
-      $imgfile =~ s/\....$/\-${timescale}.img/;  # replace extension
-      # print STDERR "Setting imgfile = $imgfile\n";
+      $imgfile = "$imgdir/$datafile";
+      $imgfile =~ s/\....$/\-${tmscale}\.gif/;  # replace extension
+      $debug && print STDERR "Setting imgfile = $imgfile\n";
     }
     else {
       print STDERR "Cannot create or write dir $imgdir- $!\n";
     }
+  }
+
+  if ($imgfile eq "-" && uc($mode) eq "HTML") {
+    print "<h3>ERROR- Cannot generate image (please report to webmaster)</h3>\n";
+    return;
   }
 
   $comment = "(generated " . scalar(localtime) .")";
@@ -240,11 +261,11 @@ sub do_graph {
   # The variable is always stored as 'var1' and the minimum values
   # of the severity are stored as 'sev'.
   my ($averages,$xsize,$ysize) =
-    RRDs::graph ($imgfile, "-t", "$title  ($timelegend{$timescale})",
-		 "--imgformat", "$mode", "--lazy", "--lower-limit", "0",
-		 "-s", "-$timestart{$timescale}", "-e", "now", 
-		 "DEF:var1=$rrd_realdir/${rrdfile}:var1:AVERAGE", 
-		 "DEF:sev=$rrd_realdir/${rrdfile}:sev:AVERAGE",
+    RRDs::graph ($imgfile, "-t", "$title  ($timelegend{$tmscale})",
+		 "--imgformat", "$imgmode", "--lazy", "--lower-limit", "0",
+		 "-s", "-$timestart{$tmscale}", "-e", "now", 
+		 "DEF:var1=$rrd_realdir/${datafile}:var1:AVERAGE", 
+		 "DEF:sev=$rrd_realdir/${datafile}:sev:AVERAGE",
 		 "CDEF:intsev=sev,UN,UNKN,sev,1.5,GT,sev,2.5,LE,2,sev,3.5,LE,3,4,IF,IF,1,IF,IF",
 		 "CDEF:nodata1=var1,UN,INF,UNKN,IF",	# replace unknowns
 		 # extract only values at desired severity
@@ -286,10 +307,17 @@ sub do_graph {
   
   my ($err) = RRDs::error();
   if ($err) {
-    print STDERR "RRD error - $err\n";
+    print STDERR "RRD error for $rrd_realdir/$datafile - $err\n";
     exit 1;
   }
 
+  if ($mode eq "HTML") {	# just return url to the generated file
+    my $imgurl = $imgfile;
+    $debug && print STDERR "URL for $imgfile is $imgurl\n";
+    $imgurl =~ s|$IMAGE_CACHEDIR|$RRDIMAGE_URL_PREFIX|;
+    return $imgurl;
+  }
+  
   exit 0 if ($imgfile eq "-");
 
   ## here if we have generated the file on disk
@@ -319,20 +347,20 @@ $legend =  "$cgienv{'legend'}";
 $timescale = $cgienv{'timescale'};
 $mode =	uc $cgienv{'mode'};	# html or gif or png
 
-$rrd_realdir = "$RRD_DBDIR/" . substr($rrdsubdir, 0, 1) . "/$rrdsubdir";
-$timescale = 'A' if ($timestart{$timescale} eq "");	# default
-
 if ("$rrdsubdir" eq "") {
   print STDERR "NULL rrdsubdir not permitted\n";
   exit 1;
 }
 
+$rrd_realdir = "$RRD_DBDIR/" . substr($rrdsubdir, 0, 1) . "/$rrdsubdir";
+$timescale = 'A' if ($timestart{$timescale} eq "");	# default
+
 if ( (! -d "$rrd_realdir") || (! -r "$rrd_realdir") )
 {
-    print "Content-type: text/plain\n\n";
-    print "\n\tDirectory $rrdsubdir does not exist or not readable\n";
-    print STDERR "Directory $rrd_realdir does not exist or not readable\n";
-    exit 1;
+  print "Content-type: text/plain\n\n";
+  print "\n\tDirectory $rrdsubdir does not exist or not readable\n";
+  print STDERR "Directory $rrd_realdir does not exist or not readable\n";
+  exit 1;
 }
 
 if ($rrdfile eq "") {
@@ -348,7 +376,7 @@ if ($timescale eq 'A' || $timescale eq 'a') {
   exit 0;
 }
 
-if ($mode eq lc('html')) {
+if ($mode eq "HTML") {
   # call self with mode = gif
   print "Content-type: text/html\n\n";
   print <<Eof;
@@ -362,4 +390,4 @@ Eof
 }
 
 ## here if the mode is 'gif' or 'png' and has to be plotted.
-&do_graph();
+&do_graph($rrdfile, $timescale);
