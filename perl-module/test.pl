@@ -20,15 +20,18 @@ print "ok 1\n";
 # (correspondingly "not ok 13") depending on the success of chunk 13
 # of the test code):
 
-SNIPS::main(\&readconf, undef, \&do_test);
-# SNIPS::startup();
+# SNIPS::main(\&readconf, undef, \&do_test);
+SNIPS::startup();
 $datafile = $SNIPS::datafile;
 $configfile = $SNIPS::configfile;
 print "\t Datafile = $datafile\n\t Configfile= $configfile\n";
 
 print "Testing event functions:\n";
-open(DATA, "> $datafile");
-SNIPS::write_dataversion(DATA);
+#open(DATA, "> $datafile"); $datafd = fileno(DATA);
+#SNIPS::write_dataversion($datafd);
+
+use Fcntl;	# need O_WRONLY and other definitions
+$datafd = SNIPS::open_datafile($datafile, O_WRONLY | O_CREAT | O_TRUNC);
 
 $event = SNIPS::new_event();
 print "\tgot new_event\n";
@@ -39,26 +42,26 @@ print "\tdone init_event\n";
 SNIPS::update_event($event, 1, 54321, 3);
 print "\tdone update_event\n";
 
-$bytes = SNIPS::write_event(DATA, $event);
+$bytes = SNIPS::write_event($datafd, $event);
 print "\tdone write_event ($bytes bytes)\n";
 
 SNIPS::update_event($event, 1, 12345, 3);
-$bytes = SNIPS::write_event(DATA, $event);
+$bytes = SNIPS::write_event($datafd, $event);
 print "\tdone write_event ($bytes bytes)\n";
 
-close (DATA);
-print "DONE\n";
+SNIPS::close_datafile($datafd);
+print "DONE\n\n";
 
 @fields = SNIPS::get_eventfields();
 print "Event fields are:\n   ", join (" ", @fields), "\n";
 
 ($status, $threshold, $maxseverity) = SNIPS::calc_status(2, 1, 3, 5);
-print "Tested calc_status()\n";
+print "\nTested calc_status()\n";
 
-print "Now reading back events written to $datafile\n";
-open(DATA, "< $datafile");
-SNIPS::read_dataversion(DATA);
-while ( ($event = SNIPS::read_event(DATA) ) )
+print "\nNow reading back events written to $datafile\n";
+
+$datafd = SNIPS::open_datafile($datafile, O_RDONLY);
+while ( ($event = SNIPS::read_event($datafd) ) )
 {
   %event = SNIPS::unpack_event($event);
   print "--------\n";
@@ -85,11 +88,10 @@ while ( ($event = SNIPS::read_event(DATA) ) )
 
 }
 
-close(DATA);
+SNIPS::close_datafile($datafd);
 
-if ($SNIPS::do_reload > 0) {
-  print "do_reload is $SNIPS::do_reload\n";
-  my $FH = SNIPS::reload(\&readconf);
+if (SNIPS::get_reload_flag() > 0) {
+  SNIPS::reload(\&readconf);
 }
 
 #SNIPS::done();
