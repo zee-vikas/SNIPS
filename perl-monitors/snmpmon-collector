@@ -108,7 +108,7 @@ if ($ping =~ m|^/|) {-x $ping || die("Cannot find $ping, exiting"); }
 		  host
 		 ) ;
 %mibalias = (
-	     'system', 'SYSTEM',
+	     'system', 'SYS',
 	     'rmon', 'RMON',
 	     'router', 'RTR',
 	     'cisco_router', 'CISCO',
@@ -136,7 +136,7 @@ $MIBHOSTRESOURCES = "$MIB2.25";	# RFC 1514 (Host Resources)
 sub init_system {
   my $idx = "system" ;
   my $prefix = "$MIB2.system";
-  my @lvars = qw(sysDescr sysUpTime);
+  my @lvars = qw(sysUpTime);
   
   $debug && print STDERR "(debug) Running init_system\n";
   foreach my $i (@lvars) { push ( @{$typevars{$idx}}, "$prefix.$i" ); }
@@ -229,13 +229,13 @@ sub procdata_system {
     print STDERR "(debug) Running procdata_system for device $dev\n";
   foreach my $var ( @{$typevars{"system"}} ) {
     my $v = &toindex($var) ;
-    my $varalias = ( $var =~ /^.*(\.[^.]+)$/ ) ;
+    my ($varalias) = ( $var =~ /^.*(\.[^.]+)$/ ) ;
     $varalias = $mibalias{"system"} . $varalias ;
 
     next if (! defined(@{$nvarval{$v}}) );
 
     if ($var =~ /sysUpTime/) {	#  (844388487) 97 days, 17:31:24
-      my $upsecs = (@{$nvarval{$v}}[0] =~ /^\s*\((\d+)\)\s*/ );
+      my ($upsecs) = (@{$nvarval{$v}}[0] =~ /^\s*\((\d+)\)\s*/ );
       # convert TICKS into secs
       printf "$varalias %d VALUE\n", int($upsecs / 100) ;
     }
@@ -275,7 +275,7 @@ sub procdata_rmon {
       my @deltarate = &vector_calc(\@deltaval, "/", \$dtime);
 
       # shorten the prefix
-      my $varalias = ( $var =~ /^.*(\.[^.]+)$/ ) ;
+      my ($varalias) = ( $var =~ /^.*(\.[^.]+)$/ ) ;
       $varalias = $mibalias{rmon} . $varalias ;
       my $i = 0;
       foreach (@deltarate) {
@@ -322,7 +322,7 @@ sub procdata_router {
     if ($var =~ /ifSpeed/) {@ifSpeed = @{$nvarval{$v}} ;}
     elsif ($var =~ /ifOutQLen/) # need value, not rate
     {
-      my $varalias = ( $var =~ /^.*(\.[^.]+)$/ ) ;
+      my ($varalias) = ( $var =~ /^.*(\.[^.]+)$/ ) ;
       $varalias = $mibalias{router} . $varalias ;
       my $i = 0;
       foreach ( @{$nvarval{$v}} ) {
@@ -344,7 +344,7 @@ sub procdata_router {
 	my @deltarate =  &vector_calc(\@deltaval, "/", \$dtime);
 	
 	# shorten the prefix
-	my $varalias = ( $var =~ /^.*(\.[^.]+)$/ ) ;
+	my ($varalias) = ( $var =~ /^.*(\.[^.]+)$/ ) ;
 	$varalias = $mibalias{router} . $varalias ;
 	my $i = 0;
 	foreach (@deltarate) {
@@ -387,7 +387,7 @@ sub procdata_cisco_router {
 
     if ($var =~ /IfReliab/)	# no deltas for interface reliability
     {
-      my $varalias = ( $var =~ /^.*(\.[^.]+)$/ ) ;
+      my ($varalias) = ( $var =~ /^.*(\.[^.]+)$/ ) ;
       $varalias = $mibalias{cisco_router} . $varalias ;
       $i = 0;
       foreach ( @{$nvarval{$v}} ) {
@@ -410,7 +410,7 @@ sub procdata_cisco_router {
 	my @deltarate = &vector_calc(\@deltaval, "/", \$dtime);
 	
 	# shorten the prefix
-	my $varalias = ( $var =~ /^.*(\.[^.]+)$/ ) ;
+	my ($varalias) = ( $var =~ /^.*(\.[^.]+)$/ ) ;
 	$varalias = $mibalias{cisco_router} . $varalias ;
 	$i = 0;
 	foreach (@deltarate) {
