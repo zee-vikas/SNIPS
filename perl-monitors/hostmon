@@ -236,7 +236,7 @@ sub do_devicedatafiles {
       if (/^\s*-+\s*$/ || /^\s*$/ ) {next; } # separators, blank lines
       if (/^TIME\s+(\d+)/)   { $curtime = $1 ; next; }
       if (/^DEVICE\s+(\S+)/) { $curdev = $1 ;  next; }	# allow override
-      
+
 
       if ($checktimestamp) { # need a valid time stamp line
 	if ($curtime == 0) {
@@ -298,11 +298,13 @@ sub do_devicedatafiles {
       $timestamp{$item} = $curtime;
       if ( defined($ret) && !($isknownitem{$item}) ) {	# init new event
 	alter_event($event, $s_sender, $curdev, $curdev,
-		    $comment ? $comment : undef, $curvar, $curunit);
+		    $comment ? $comment : "", $curvar, $curunit);
 	write_event($datafd, $event);
 	push (@items, $item);	# preserves same order as in events file
 	$isknownitem{$item} = 1;
       }
+      # reset all variables (not $curdev)
+      ($curvar, $curunit, $curvalue, $comment)= ("", "", 0, "");
 
     }	# while(DFILE)
     close (DFILE);
