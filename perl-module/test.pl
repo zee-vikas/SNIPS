@@ -22,17 +22,19 @@ print "ok 1\n";
 
 $SNIPS::debug = 2;
 $SNIPS::dorrd = 3;
-$SNIPS::do_reload = 4;
-$SNIPS::dummy = 9;
+$SNIPS::doreload = 4;
+# $SNIPS::dummy = 9;
 $SNIPS::s_configfile = "ConfigFile";
 $SNIPS::s_datafile = "DataFile";
-
 print "dorrd is: ", $SNIPS::dorrd,
   ", debug is: ",   $SNIPS::debug,
-  ", do_reload is: ", $SNIPS::do_reload,
+  ", doreload is: ", $SNIPS::doreload,
   ", configfile is: ", $SNIPS::s_configfile,
   ", datafile is: ", $SNIPS::s_datafile,
   "\n";
+sub doodoo {
+
+}
 
 $av = SNIPS::new_event();
 $bv = SNIPS::new_event();
@@ -61,7 +63,7 @@ print "\nTested calc_status()\n";
 
 print "\nNow reading back events written to $datafile\n";
 
-$datafd = SNIPS::open_datafile($datafile, O_RDONLY);
+$datafd = SNIPS::open_datafile($datafile, "r");
 while ( ($event = SNIPS::read_event($datafd) ) )
 {
   %event = SNIPS::unpack_event($event);
@@ -99,7 +101,7 @@ if (SNIPS::get_reload_flag() > 0) {
 
 sub readconf {
   print "This is subroutine readconf(), file= $s_datafile\n";
-  $datafd = SNIPS::fopen_datafile($s_datafile, "w");
+  $datafd = SNIPS::open_datafile($s_datafile, "w");
   
   $event = SNIPS::new_event();
   print "\tgot new_event\n";
