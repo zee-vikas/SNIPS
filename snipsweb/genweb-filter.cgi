@@ -116,7 +116,7 @@ sub print_form {
 
 
   print "<P>", $query->reset, "&nbsp; &nbsp;",
-        $query->submit('Action', 'Reload'), "&nbsp; &nbsp;\n",
+#        $query->submit('Action', 'Toggle'), "&nbsp; &nbsp;\n",
         $query->submit('Action', 'Submit');
   my $url = $query->param('noncgiurl');
   if (defined($url) && $url ne "") {
