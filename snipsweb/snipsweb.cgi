@@ -537,7 +537,7 @@ sub doUpdates {
       next if (/^\s*\#/);   # skip comments
       next if (/^\s*$/);   # skip blank lines
       ($junk, $explain) = split /\t/;
-      last if ($junk =~ /^$devicename\:$deviceaddr\:$variable/);
+      last if ($junk =~ /^($subdevice\+)?$devicename\:$deviceaddr\:$variable/);
       $explain = "";	# reset/clear if not matched
     }
     close (INPUT);
