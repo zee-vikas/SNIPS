@@ -19,6 +19,9 @@
 
 /*
  * $Log$
+ * Revision 2.2  2001/07/11 03:39:49  vikas
+ * Needed include inet.h
+ *
  * Revision 2.1  2001/07/08 23:17:31  vikas
  * Can specify the IP address of the source packets using SNIPS_LCLADDR
  * (patch submitted by jgreco@ns.sol.net)
@@ -75,6 +78,7 @@ static char rcsid[] = "$Id$";
 
 #include <netinet/in_systm.h>	/* required for ip.h */
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #if defined(LINUX) || defined(linux)
 # include "ip.h"
 # include "ip_icmp.h"
