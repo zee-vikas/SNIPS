@@ -127,7 +127,7 @@ $s_pollinterval=60;			# Seconds to sleep between tries.
 $varname = "UNINIT";
 $varunits = "LogMesg";
 $debug = 0;				# set to 1 for debugging output
-$expiretime = (30*60); # time for which an entry remains in datafile
+$expiretime = (30*60); # secs for which an entry remains in datafile
 ############################
 
 ##
@@ -175,8 +175,9 @@ sub readconf {
     if (/\s*(\S+)\s+(\S+)\s+(\S+)\s*(.*)\s*$/)
     {
       my $item = $1 ;	# the VAR name
-      my $hostregex = $2 ;	# host regular exp
-      if ($2 eq '*' || $2 eq '+') { $re = '.+' } ; # convert '*' => '.+'
+      # host regex.
+      my $hostregex = $2;
+      if ($2 eq '*' || $2 eq '+') { $hostregex = '.+'; } # Convert '*' => '.+'
       $device{$item} = $hostregex;
       $level{$item} = str2severity($3);  # level
       $regexp{$item} = $4; # regexp for searching log lines
@@ -213,7 +214,7 @@ sub readconf {
 sub do_poll {
   my $event = new_event();
 
-  alter_event($event, $s_sender, undef, undef, undef, $varunits);
+  alter_event($event, $s_sender, undef, undef, undef, undef, $varunits);
   # expire old data in SNIPS data file
   &expire_datafile_events();
 
@@ -273,13 +274,13 @@ sub do_poll {
 	  
 	  # init event and fill values. The parsed 'regexp' is the
 	  # address field.
-	  alter_event($event, undef, $host, $regexp, $var, undef);
+	  alter_event($event, undef, $host, $regexp, undef, $var, undef);
 	  my %event = unpack_event($event);
 
 	  # The event gets written directly at the level instead
 	  # of escalating gradually like typical snips monitors
 	  $event{severity} = $event{loglevel} = $level{$var};
-	  $event{nocop} = $n_DOWN;
+	  $event{state} = $n_DOWN;
 	  my $ev = pack_event(%event);
 	  write_event($datafd, $ev);
 	  SNIPS::eventlog($ev);
@@ -318,22 +319,16 @@ sub expire_datafile_events {
     print STDERR "Error opening $s_datafile\n"; next;
   }
 
-  my ($sec, $min, $hour, $mday, $mon, $year, $wday, $yday, $isdst) =
-	localtime(time);
-  my ($curtime) = ($hour*60*60) + ($min*60) + $sec; # convert to seconds
+  my ($curtime) = time;
 
   # read each event structure from the SNIPS datafile
   while ( ($event = read_event($fd_in)) )
   {
     my %event = unpack_event($event);
-    my $evttime = $event{hour}*60*60 + $event{min}*60; # event time in secs
-    my $item = $event{varname};
-
-    # if next date then add 24*60 to curtime
-    if ($curtime < $evttime) { $curtime = $curtime + (24*60*60); }
+    my $item = $event{var_name};
 
     # if event expired then dont write it back.
-    if ($curtime > ($evttime + $expiretime)) {
+    if ($curtime > ($event{eventtime} + $expiretime)) {
       $isdone{$item} = 0;		# reset
       if ($debug > 2) {
 	print STDERR "(expire_ev) Expiring Variable: \'$item\'\n";
