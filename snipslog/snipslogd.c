@@ -15,6 +15,12 @@
 
 /*
  * $Log$
+ * Revision 1.1  2001/07/28 01:44:26  vikas
+ * - Now handles mixed endian (converts network to host endian). Patch
+ *   sent in by marya@st.jip.co.jp
+ * - Calls standalone() again only if in daemon mode, else was killing
+ *   itself if ran in debug mode.
+ *
  * Revision 1.0  2001/07/09 03:16:39  vikas
  * For SNIPS v1.0
  *
@@ -113,12 +119,13 @@ main(ac, av)
       dup2(errfd, 2);
       close (errfd);
     }
-  }
 
-  /* Remember to do the snips_startup() AFTER daemonizing */
+    standalone((char *)get_pidfile());	/* save new pid after forking */
+
+  }	/* if (debug) */
+
   if (configfile == NULL)
     configfile = (char *)get_configfile();
-  snips_startup();
 
   if (debug)
     fprintf(stderr, "  configfile= '%s', errfile= '%s'\n\n",
@@ -262,6 +269,8 @@ readevent(fd)
   }
   signal(SIGALRM, SIG_IGN);		/* ignore alarm */
   alarm(0) ;
+
+  ntohevent(&v, &v);			/* network to host endian */
 
 #ifdef DEBUG
   if (debug)
