@@ -1,6 +1,5 @@
-<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
-<!-- $Header$ -->
 <html>
+<!-- $Header$ -->
 
 <head>
 <title>SNIPS / SNIPS RELEASE Notes</title>
@@ -72,6 +71,44 @@ Change Log</h1>
 
 <h3>Release Notes</h3>
 
+<h4><u>snips v1.2<i>(Sep 2001)</i></u></h4>
+
+<p>Minor release, primarily bug fixes.</p>
+
+    <blockquote>
+      <dl>
+	<dt>multiping</dt>
+	<dd>multiping timings were skewed by about 200ms or so
+	   because it was sleeping for 50ms (INTERPKT_GAP) between
+	   each ping.
+	</dd>
+	<dt>snipsweb/Makefile</dt>
+	<dd>make install now overwrites existing files since all
+	  customization is stored in snipsweb-confg.
+	</dd>
+	<dt>snipsweb.cgi</dt>
+	<dd>» date/timestamps were not appearing in the Devices logs page
+	  (fix by sco@openface.ca) <br>
+	</dd>
+	<dt>hostmon</dt>
+	<dd>Was corrupting data- comment/subdevice information was
+	  showing up in data file because $comment was being set
+	  to undef instead of an empty string in alter_event().
+	</dd>
+	<dt>hostmon-collector</dt>
+	<dd>try_telnet() was failing (fix by eankingston@home.com)
+	</dd>
+	<dt>genweb.cgi</dt>
+	<dd>One of the IMG lines had single quote around file name
+	  instead of double quotes (fix by rob@piethief.co.uk)
+	</dd>
+      </dl>
+    </blockquote>
+
+<hr align="center" width="50%" size="1" color="#0000FF">
+
+------------
+
 <h4><u>snips v1.1 <i>(Aug 2001)</i></u></h4>
 
 <p>Minor release, primarily bug fixes.</p>
@@ -93,7 +130,7 @@ Change Log</h1>
 	<dt>snipsweb</dt>
 	<dd>» Misc bugs in genweb.cgi snipsweb.cgi <br>
           » crontab listed snipsweb.cgi in bin/ dir instead of web/cgi dir<br>
-          » was not handling cookies correctly<br>
+          » was not handling cookies correctly (fix by kylev@yaga.com)<br>
           » genweb.cgi was not parsing CGI parameters properly
 	</dd>
 	<dt>snipsperl.conf</dt>
@@ -224,6 +261,5 @@ Change Log</h1>
 <hr align="center" width="50%" size="1" color="#0000FF">
 
 <p align="center"><a href="mailto:vikas@navya_.com">Feedback</a></p>
-</font>
 </body>
 </html>
