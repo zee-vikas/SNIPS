@@ -45,8 +45,6 @@ _startup(myname,...)
 	  if (extnm)  free(extnm);
 	  extnm = (char *)Strdup(s);
 	}
-	printf ("BTW, prognm= %s, extnm= %s, do_reload= %d\n",
-			prognm, extnm, do_reload);
 	RETVAL = snips_startup();
   }
   OUTPUT:
@@ -135,10 +133,9 @@ snips_get_configfile()
   OUTPUT:
 	RETVAL
 
-## FIX FIX FIX. how to access these global variables from snips.h
+## functions to access the global variables from snips.h
 int
 snips_get_reload_flag()
-
   CODE:
   {
 	RETVAL = do_reload;
@@ -146,13 +143,49 @@ snips_get_reload_flag()
   OUTPUT:
 	RETVAL
 
-## FIX FIX FIX. how to access these global variables from snips.h
 void
 snips_set_reload_flag(i)
 	int i;
   CODE:
   {
-	do_reload = i;
+	if (i == 0)	do_reload = 0;
+	else do_reload += i;
+  }
+
+int
+snips_get_debug_flag()
+  CODE:
+  {
+	RETVAL = debug;
+  }
+  OUTPUT:
+	RETVAL
+
+void
+snips_set_debug_flag(i)
+	int i;
+  CODE:
+  {
+	if (i == 0)  debug = 0;
+	else debug += i;
+  }
+
+int
+snips_get_rrd_flag()
+  CODE:
+  {
+	RETVAL = dorrd;
+  }
+  OUTPUT:
+	RETVAL
+
+void
+snips_set_rrd_flag(i)
+	int i;
+  CODE:
+  {
+	if (i == 0) dorrd = 0;
+	else dorrd += i;
   }
 
 ## Override the default config and datafile names
@@ -174,22 +207,22 @@ snips_set_datafile(f)
 
 ## Read and write dataversion.
 int
-read_dataversion(fh)
-	FILE *fh;
+read_dataversion(fd)
+	int fd;
   CODE:
   {
-	RETVAL = read_dataversion(fileno(fh));
+	RETVAL = read_dataversion(fd);
   }
   OUTPUT:
 	RETVAL
 
 # Write dataversion
 int
-write_dataversion(fh)
-	FILE *fh;
+write_dataversion(fd)
+	int fd;
   CODE:
   {
-	RETVAL = write_dataversion(fileno(fh));
+	RETVAL = write_dataversion(fd);
   }
   OUTPUT:
 	RETVAL
@@ -297,13 +330,13 @@ calc_status(val, warnt, errt, critt)
 # Read one event from the open filehandle. Will need to unpack this
 # structure
 EVENT *
-read_event(fh)
-	FILE *fh;
+read_event(fd)
+	int fd;
   PREINIT:
 	static EVENT v;
   CODE:
   {
-	if (read_event(fileno(fh), &v) > 0)
+	if (read_event(fd, &v) > 0)
 	{
 	  RETVAL = &v;
 	}
@@ -315,24 +348,24 @@ read_event(fh)
 
 # Write event to the open filehandle
 int
-write_event(fh, pv)
-	FILE *fh;
+write_event(fd, pv)
+	int fd;
 	EVENT *pv;
   CODE:
   {
-	RETVAL = write_event(fileno(fh), pv);
+	RETVAL = write_event(fd, pv);
   }
   OUTPUT:
 	RETVAL
 
 # Rewind's output file by one event, and then writes given event.
 int
-rewrite_event(fh, pv)
-	FILE *fh;
+rewrite_event(fd, pv)
+	int  fd;
 	EVENT *pv;
   CODE:
   {
-	RETVAL = rewrite_event(fileno(fh), pv);
+	RETVAL = rewrite_event(fd, pv);
   }
   OUTPUT:
 	RETVAL
@@ -455,5 +488,49 @@ _pack_event(eventhash)
 	RETVAL
 
 
-# open_datafile()  /* how to send flags and mode to C program? */
-# close_datafile()
+## Returns file descriptor (not FILE *)
+int
+open_datafile(dfile, flags)
+	char *dfile;
+	int flags;
+  CODE:
+  {
+	RETVAL = open_datafile(dfile, flags);
+  }
+  OUTPUT:
+	RETVAL
+
+## open_datafile but accepts fopen() style flags (r, w, r+, w+)
+int
+fopen_datafile(dfile, cflags)
+	char *dfile;
+	char *cflags;
+  CODE:
+  {
+	int flags = 0;
+	if (!strcmp(cflags, "r"))
+		flags = O_RDONLY;
+	else if (!strcmp(cflags, "w"))
+		flags = (O_WRONLY | O_TRUNC | O_CREAT);
+	else if (!strcmp(cflags, "r+"))
+		flags = O_RDWR;
+	else if (!strcmp(cflags, "w+"))
+		flags = (O_RDWR | O_CREAT | O_TRUNC);
+	else
+		flags = O_RDONLY;
+
+	RETVAL = open_datafile(dfile, flags);
+  }
+  OUTPUT:
+	RETVAL
+
+	
+void
+close_datafile(fd)
+	int fd;
+  CODE:
+  {
+	close_datafile(fd);
+  }
+
+# ######   ######   ######   ######   ######   ######
