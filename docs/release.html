@@ -24,7 +24,7 @@ Change Log</h1>
 
 <hr align="center" width="70%" noshade color="#008080">
 
-<h3>Features in v1.0</h3>
+<h3>Features in v1.x</h3>
 
 <p>The main features in this release of the software are:</p>
 
@@ -71,6 +71,71 @@ Change Log</h1>
 <hr color="#008080">
 
 <h3>Release Notes</h3>
+
+<h4><u>snips v1.1 <i>(Aug 2001)</i></u></h4>
+
+<p>Minor release, primarily bug fixes.</p>
+
+    <blockquote>
+      <dl>
+	<dt>snipslogd-conf</dt>
+	<dd>snipslogd-conf extension should have been -confg
+	</dd>
+	<dt>perl-module</dt>
+	<dd>Had to define LD also while generating Makefile. Solaris machines
+	  can pick up cc instead of command line gcc.
+	</dd>
+	<dt>snipslogd</dt>
+	<dd>» Converts host byte order to network for logging between hosts
+	  with different endian.<br>
+	  » Bug fix where process was getting killed in debug mode.
+	</dd>
+	<dt>snipsweb</dt>
+	<dd>» Misc bugs in genweb.cgi snipsweb.cgi <br>
+          » crontab listed snipsweb.cgi in bin/ dir instead of web/cgi dir<br>
+          » was not handling cookies correctly<br>
+          » genweb.cgi was not parsing CGI parameters properly
+	</dd>
+	<dt>snipsperl.conf</dt>
+	<dd>Should use qq() instead of q(). Was causing all perl scripts to
+	  give errors.
+	</dd>
+	<dt>etherload</dt>
+	<dd>Was not setting name of config file correctly.
+	</dd>
+	<dt>ntpmon</dt>
+	<dd>» Was returning -1 in stratum on error.<br>
+	  » Bug fixed where bzero() was being called after get_inet_address().
+	</dd>
+	<dt>perl-module</dt>
+	<dd>unpack_event() was returning bad values, because tstr was not
+	  declared static in event2strarray()
+	</dd>
+	<dt>radiusmon</dt>
+	<dd>Added portType option (reported by fosters@uk.psi.com)
+	</dd>
+	<dt>snmpmon-collector</dt>
+	<dd>Checks to see if variables were initialized to prevent warning
+	  messages.
+	</dd>
+	<dt>cmu-snmp/mib-v2.txt</dt>
+	<dd>Had to comment out the HP private mib since it was messing
+	  up the parsing of the 'mib-2.system' tree.
+	</dd>
+	<dt>notifier.pl</dt>
+	<dd>Numerous bug fixes (bgoodwin@usdatacenters.com)
+	</dd>
+	<dt>snmpmon-collector</dt>
+	<dd>Error in trimming the variable names.
+	</dd>
+	<dt>crontab.snips</dt>
+	<dd>Listed log-maint.pl instead of logmaint.pl
+	</dd>
+      </dl>
+    </blockquote>
+
+<hr align="center" width="50%" size="1" color="#0000FF">
+
 
 <h4><u>snips v1.0 <i>(June 2001)</i></u></h4>
 
