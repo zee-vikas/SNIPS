@@ -12,6 +12,9 @@
 
 /*
  * $Log$
+ * Revision 1.1  2001/08/01 01:19:16  vikas
+ * Now sets stratum to 16 instead of -1.
+ *
  * Revision 1.0  2001/07/08 22:44:25  vikas
  * For SNIPS
  *
@@ -110,6 +113,7 @@ ntpmon(host)
     {
       if(debug)
 	fprintf(stderr, "%s:ntp error for %s \n", prognm, host);
+      stratum = 255;	/* indicate error, cannot return -ve */
     }
     else
     {
