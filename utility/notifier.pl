@@ -10,19 +10,23 @@
 # accordingly.
 # You can also run this script from snipslogd, so that you get notified as
 # soon as a device comes up or goes down. In this mode, it reads stdin for
-# eventlog format data, and the time of the event is set to -1 sec. e.g.
+# eventlog format data, and the time of the event is set to -1 sec. In
+# this mode, it notifies for all the events read from stdin (i.e. all
+# severities). e.g.
 #
-#	display_snips_datafile ippingmon-output | notifier.pl -
+#   display_snips_datafile ntpmon-output | grep Critical | notifier.pl -
 #
 # CAVEATS:
-#	Only looks at CRITICAL events.
-#	Sends one email/page per event instead of grouping them together
-#	Does not notify when device comes back up when run from cron (but
-#	will if run from snipslogd)
+#	- Only looks at CRITICAL events.
+#	- Sends one email/page per event instead of grouping them together
+#	- Does not notify when device comes back up when run from cron (but
+#	  will if run from snipslogd).
+#	- If too many mail or pager processes are called, this can generate
+#	  a 'Too many open files"  error.
 #
 # AUTHOR:
 #	Adrian Close (adrian@aba.net.au), 1998
-#	vikas@navya_.com - Added reading data from stdin
+#	vikas@navya_.com - Added reading data from stdin, cleaned up.
 #
 use strict;
 use vars qw($snipsroot $bindir $etcdir $datadir 
@@ -86,26 +90,31 @@ $repeat_interval = 3600;	# seconds
 #
 #
 sub readconf {
+  my $lineno = 0;
 
   if (! open (CONFIG, "< $cfile")) {
     print STDERR "Unable to open $cfile.\n" if ($debug);
 
     $hrlyrepeat{'default'} = 1;	# for unlisted devices, do repeat notification
-    $notify{'default'} = [ $OPSMAIL . ":email" . ":0" ];
+    $notify{'default'} = [ "$OPSMAIL" . ":email" . ":0" ];
     return;
   }
 
   while (<CONFIG>)
   {
+    ++$lineno;
     chomp;
     next if ( /^\s*\#/ || /^\s*$/ );	# comments & blank lines
 
     # device:addr[:var]  repeat  to:medium:minage
-    if (/^(\S+)\s+([0-1])\s+(.+)/)
+    if (/^\s*(\S+)\s+([0-1])\s+(.+)/)
     {
       $hrlyrepeat{$1} = $2;		# 0 or 1
       $notify{$1} = [ split (/\,/, $3) ] ;	# hash of array values
+      next;
     }
+
+    print STDERR "Unknown config line [$lineno]: $_\n";
   }	# while config
   close (CONFIG);
 
@@ -126,7 +135,8 @@ sub readupdates {
       chomp;
       next if (/^\s*\#/);	# skip comments
       next if (/^\s*$/);	# skip blank lines
-      $update{$1} = $2 if (/^(\S+)\s+(.+)/);	# Build $update array
+      if (/^(\S+)\s+(.+)/) { $update{$1} = $2 ;	next; } # Build $update array
+      print STDERR "Cannot parse updates line $_\n";
     }
     close (UPDATESFILE);
   }
@@ -157,7 +167,7 @@ sub processevents {
     # Get current month and year
     ($junk,$junk,$junk,$junk, $cmonth,$cyear, $junk,$junk,$junk) = 
       localtime(time);
-    my $esecs = time;		# Epoch seconds (seconds since 1/1/1970)
+    my $cursecs = time;		# Epoch seconds (seconds since 1/1/1970)
 
     while ( ($event = read_event($datafd)) )
     {
@@ -169,16 +179,22 @@ sub processevents {
       my $idv = "${id}:$event{var_name}";	# with varname
 		
       # event is "hidden" , so ignore
-      if ( $update{$idv} =~  m/^\(H\)/ || $update{$id} =~ m/^\(H\)/ ) {
+      if ( (defined($update{$idv}) && $update{$idv} =~  m/^\(H\)/) ||
+	   (defined($update{$id})  && $update{$id} =~ m/^\(H\)/) )
+      {
 	print  STDERR "${idv}: Hidden!\n" if ($debug > 1);
 	next;
       }
 
-      $eventage = $esecs - $event{eventtime};	# age of event
-
-      print STDERR "Event age is negative, check.\n" if (($eventage - 60) < 0);
-      print STDERR "Event $idv is $eventage secs old.\n" if ($debug > 2);
-      my @tm = localtime($event{eventime});
+      $eventage = $cursecs - $event{eventtime};	# age of event
+      if ($eventage < 0) {
+	$cursecs = time;	# update, event probably just happened
+	$eventage = $cursecs - $event{eventtime};	# age of event
+	print STDERR "Event $idv  age is negative ($eventage), check.\n" 
+	  if ($eventage < 0);	# still negative, probably clock mismatch?
+      }
+      print STDERR "Event $idv is $eventage secs old.\n" if ($debug > 1);
+      my @tm = localtime($event{eventtime});
       my $subject = "[SNIPS] $event{device_name} $event{device_addr}";
       my $message = "$event{device_name} $event{device_addr} $event{var_name} critical";
       $message .= sprintf "  since %02d:%02d on %02d/%02d\n",
@@ -207,9 +223,8 @@ sub processevents {
 #
 sub Notify {
   my ($id, $subject, $message) = @_;
-  my ($address, $medium, $minage);
 
-  print STDERR "Notify: Processing $id\n" if ($debug > 2);
+  print STDERR "Notify: Processing $id\n" if ($debug > 1);
   # Process each address
   foreach my $notify (@{ $notify{$id} })
   {
@@ -217,8 +232,9 @@ sub Notify {
     my $donotify = 0;	# assume dont need to page or mail
     my ($address, $medium, $minage) = split /:/, $notify;
     $address =~ s/^\s*(.*?)\s*$/$1/;	# trim white space
-    $medium  =~ s/^\s*(.*?)\s*$/$2/;	# trim white space
-    if ($minage == -1 && $eventage == -1)
+    $medium  =~ s/^\s*(.*?)\s*$/$1/;	# trim white space
+
+    if ($minage == -1 && $eventage == -1)	# see if we need to notify
     {
       $donotify = 1;
     }
@@ -226,7 +242,10 @@ sub Notify {
     {
       $minage = int($minage);
       $minage *= 60;	# convert to seconds
-      # print STDERR "event age = $eventage, $address wants min age $minage\n";
+      if ($debug > 2) {
+	printf STDERR ("event age = $eventage, $address wants between %d and %d\n",
+	  ($minage - $crontime), ($minage + $crontime + 1));
+      }
 
       # Check the age of the event and if hourly repeat is set. We have
       # to consider granularity of how often this program is run to avoid
@@ -250,18 +269,18 @@ sub Notify {
     }
 
     next if ($donotify == 0);
-		       
+
     $debug && print STDERR "Notifying: $address by $medium about $subject\n";
     if ($medium =~ /sms/i || $medium =~ /page/i)  {
       &PageNotify($id, $address, $message) if (defined($pager_program));
     }
-    elsif ($medium =~ /mail/i) {
+    elsif ($medium =~ /mail/i) {	#email or mail
       &EmailNotify($id, $address, $message, $subject);
     }
     else {
       print STDERR "Unknown notify medium- $medium\n";
     }
-      
+
   }	# foreach
 }
 
@@ -270,15 +289,20 @@ sub Notify {
 sub PageNotify {
   my ($id, $address, $message) = @_;
 
+  print STDERR "   Paging $address\n" if ($debug > 1);
   open(XPIPE, "|$pager_program $address") ||
     die "Could not open $pager_program\n"; 
   print XPIPE "$message";
-  if ($update{$id} ne "") { print XPIPE " - $update{$id}."; }
+  if (defined($update{$id}) && $update{$id} ne "") {
+    print XPIPE " - $update{$id}.";
+  }
   close(XPIPE);
 }
 
 sub EmailNotify {		# Send email notification of fault
   my ($id, $address, $message, $subject) = @_;
+
+  print STDERR "   Emailing $address\n" if ($debug > 1);
 
   if ($email_program =~ /ucb/) {
     open(XPIPE, "|$email_program -s \"SNIPS notification: $subject\" $address") ||
@@ -288,7 +312,9 @@ sub EmailNotify {		# Send email notification of fault
     open(XPIPE, "|$email_program $address") || die "Cannot open $email_program.\n";
   }
   print XPIPE "$message";
-  if ($update{$id} ne "") { print XPIPE "\n\t UPDATE: $update{$id}\n"; }
+  if (defined($update{$id}) && $update{$id} ne "") {
+    print XPIPE "\n\t UPDATE: $update{$id}\n";
+  }
   close(XPIPE);
 }
 
@@ -310,12 +336,17 @@ sub process_stdin {
       my $idv = "${id}:${varname}";	# with varname
 		
       # event is "hidden" , so ignore
-      if ( $update{$idv} =~  m/^\(H\)/ || $update{$id} =~ m/^\(H\)/ ) {
+      if ( (defined($update{$idv}) && $update{$idv} =~  m/^\(H\)/) ||
+	   (defined($update{$id}) &&  $update{$id} =~ m/^\(H\)/) )
+      {
 	print  STDERR "${idv}: Hidden!\n" if ($debug > 1);
 	next;
       }
-      $eventage = -1;	# set to special value to indicate stdin data
-      print STDERR "Event $idv is $eventage secs old.\n" if ($debug > 2);
+
+      # set eventage to special value to indicate stdin data so that we
+      # always notify and dont work off of the age.
+      $eventage = -1;
+      print STDERR "Event $idv is $eventage secs old.\n" if ($debug > 1);
 
       my $subject = "[snips] $devicename $deviceaddr ($sender)";
       if    ( defined($notify{$idv}) ) { &Notify($idv, $subject, $eventstr); }
@@ -326,17 +357,17 @@ sub process_stdin {
     }
     print STDERR "UNKNOWN format of input line:\n  $_\n";
   }	# while <>
-}	# process_stdin
+}  # process_stdin
 
 ##
 ## Main program
 ##
 &readconf;
 &readupdates;
-if ($#ARGV >= 0 && $ARGV[1] eq '-') {
+if ($#ARGV >= 0 && $ARGV[0] eq '-') {
+  $debug && print STDERR "Processing stdin\n";
   &process_stdin;
   exit 0;
 }
-&processevents;
-
+&processevents;		# process all data files in data directory
 
