@@ -264,8 +264,69 @@ unpack_event(pv)
   OUTPUT:
 	RETVAL
 
+## Return the list of fields in the EVENT structure in the same order
+#  as the event2strarray() function returns.
+AV *
+get_eventfields()
+  PREINIT:
+	static AV *av;
+  CODE:
+  {
+	int i;
+	char **keyarray;
+	if (! av)
+	{
+		keyarray = (char **)event2strarray(NULL);
+		av = newAV();
+		for (i=0; keyarray[i] && *(keyarray[i]); ++i)
+		  av_push(av, newSVpv(keyarray[i], 0));
+	}
+	RETVAL = av;
+  }
+  OUTPUT:
+	RETVAL
 
-# pack_event() not needed?
+## Cannot seem to invoke this if parameter is set to HV *. So typecasting
+#  it. FIX FIX FIX
+# Typical Usage:
+#	$event = snips::new_packedevent();
+#	$ea =    snips::unpack_event($event);
+#	$event = snips::pack_event($ea); OR pack_event(\%hash);
+EVENT *
+pack_event(eventhash)
+	SV *eventhash;
+
+  CODE:
+  {
+	int i = 0;
+	static char **keyarray;
+	char *strarray[64];	/* assuming max 64 fields in EVENT */
+	SV **sv;
+	EVENT v;
+	HV *hv;
+
+	hv = (HV *)SvRV(eventhash);	/* extract reference */
+
+	if (!keyarray)
+		keyarray = (char **)event2strarray(NULL);
+	bzero(strarray, sizeof(strarray));
+	for (i = 0; keyarray[i] && *(keyarray[i]); ++i)
+	{
+		sv = hv_fetch(hv, keyarray[i], strlen(keyarray[i]), FALSE);
+		if (sv)
+		{
+			char *s;
+			s = (char *)SvPV(*sv, na);
+			printf("fetched %s for %s\n", s, keyarray[i]);
+		}
+	}
+	fprintf(stderr, "TO BE COMPLETED\n");
+
+	RETVAL = &v;
+  }
+  OUTPUT:
+	RETVAL
+
 
 # open_datafile()  /* how to send flags and mode to C program? */
 # close_datafile()
