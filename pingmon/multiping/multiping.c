@@ -35,7 +35,11 @@ static char rcsid[] = "$Header$" ;
  *
  *
  * $Log$
- * Revision 1.8  1994/03/25 13:41:46  vikas
+ * Revision 1.9  1994/09/07 03:25:49  vikas
+ * Changed the inet_ntoa()  in pr_addr to a simple conversion of
+ * long instead of '*&l'
+ *
+ * Revision 1.8  1994/03/25  13:41:46  vikas
  * Added fprintf() so that in sendto errors, the sitename is printed out
  * to stderr instead of to stdout.
  *
@@ -1057,10 +1061,9 @@ pr_addr(l)
 
   if ((options & F_NUMERIC) ||
       !(hp = gethostbyaddr((char *) &l, 4, AF_INET)))
-    sprintf(buf, "%s", inet_ntoa(*(struct in_addr *) & l));
+    sprintf(buf, "%s", inet_ntoa(l));
   else
-    sprintf(buf, "%s (%s)", hp->h_name,
-		   inet_ntoa(*(struct in_addr *) & l));
+    sprintf(buf, "%s (%s)", hp->h_name, inet_ntoa(l));
   return (buf);
 }
 
