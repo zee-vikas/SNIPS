@@ -6,6 +6,9 @@
  *	Vikas Aggarwal (vikas@navya_.com)  June 2000
  *
  * $Log$
+ * Revision 1.1  2001/08/01 23:19:52  vikas
+ * Minor change, sv_value should not be static.
+ *
  * Revision 1.0  2001/07/14 03:33:59  vikas
  * SNIPS perl library interface to the C library. Tough to find
  * out if PL_na is defined or not in older Perl.
@@ -493,7 +496,7 @@ _unpack_event(pv)
 	int i = 0;
 	static char **keyarray;
 	char **strarray;
-	static SV *sv_value;
+	SV *sv_value;
 	static HV *hashevent;
   CODE:
   {
@@ -513,7 +516,8 @@ _unpack_event(pv)
 		hv_store(hashevent, keyarray[i], strlen(keyarray[i]),
 			  sv_value, /*hash value*/ 0);
 
-	/*	fprintf(stderr, "(debug) unpack_event() %s, %s\n",
+	/*	if (debug > 4)
+			fprintf(stderr, "(debug) unpack_event() %s, %s\n",
 				 keyarray[i], strarray[i]); /* */
 	}
 	RETVAL = hashevent;
