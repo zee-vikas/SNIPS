@@ -1,0 +1,17 @@
+##  $Id$
+## crontab for SNIPS
+##
+## If you have a user 'snips', then install this file as that user's cron
+#
+15,45 * * * *			@ROOTDIR@/bin/keepalive_monitors.pl
+0,10,20,30,40,50 * * * * 	@ROOTDIR@/bin/notifier.pl
+58 23  * * 6			@ROOTDIR@/bin/log-maint.pl
+#
+## for html pages, run every minute
+*  * * * *	[ -x @ROOTDIR@/bin/genweb.cgi ] && @ROOTDIR@/bin/genweb.cgi >/dev/null
+#
+## Find old images and rrd files and clean them out. Uncomment after checking
+#  syntax.
+15 3 * * *	find @ROOTDIR@/rrd-imgcache @ROOTDIR@/rrddata -xdev -depth -mtime +7 -exec  /bin/rm -f {} \; 2>/dev/null
+15 4 * * *	find @ROOTDIR@/rrd-imgcache @ROOTDIR@/rrddata -xdev -depth -mtime +7 -type d -exec  /bin/rmdir -f {} \; 2>/dev/null
+#
