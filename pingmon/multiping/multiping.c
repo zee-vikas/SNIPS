@@ -35,7 +35,12 @@ static char rcsid[] = "$Header$" ;
  *
  *
  * $Log$
- * Revision 1.7  1994/01/03 22:48:31  aggarwal
+ * Revision 1.8  1994/03/25 13:41:46  vikas
+ * Added fprintf() so that in sendto errors, the sitename is printed out
+ * to stderr instead of to stdout.
+ *
+ *
+ * Revision 1.7  1994/01/03  22:48:31  aggarwal
  * Deleted 'values.h' include. Also forced a delay in pinger() if
  * the first select() returned positive (since it was sending packets
  * out too fast).
@@ -416,8 +421,8 @@ real_pinger(which)
   if (i < 0 || i != cc) {
     if (i < 0)
       perror("ping: sendto");
-    printf("%s: wrote %d chars to %s, ret=%d\n", prognm, cc,
-           inet_ntoa(to->sin_addr.s_addr), i);
+    fprintf(stderr, "    wrote %d chars for %s, sent=%d\n", cc,
+           inet_ntoa(*(struct in_addr *) &to->sin_addr.s_addr), i);
   }
   if (!(options & F_QUIET) && options & F_FLOOD)
     write(STDOUT_FILENO, &DOT, 1);
