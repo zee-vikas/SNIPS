@@ -6,6 +6,9 @@
  *	Vikas Aggarwal (vikas@navya_.com)  June 2000
  *
  * $Log$
+ * Revision 0.12  2000/07/13 12:37:40  vikas
+ * open_datafile() returns undef now on error.
+ *
  * Revision 0.11  2000/06/28 19:12:19  vikas
  * Working with the STORE and FETCH functions. However, the TIESCALAR
  * function does not work so it is renamed to TIESCALAR2 and we use
@@ -65,6 +68,8 @@ _startup(myname,...)
 		extnm = NULL;
 	}
 	RETVAL = snips_startup();
+	if (RETVAL < 0)
+	   XSRETURN_UNDEF;
   }
   OUTPUT:
 	RETVAL
@@ -77,7 +82,6 @@ snips_done()
   CODE:
   {
 	snips_done();
-
   }
 
 void
@@ -348,7 +352,8 @@ write_event(fd, pv)
 	EVENT *pv;
   CODE:
   {
-	RETVAL = write_event(fd, pv);
+	if ( (RETVAL = write_event(fd, pv)) < 0 )
+	  XSRETURN_UNDEF;
   }
   OUTPUT:
 	RETVAL
@@ -360,7 +365,8 @@ rewrite_event(fd, pv)
 	EVENT *pv;
   CODE:
   {
-	RETVAL = rewrite_event(fd, pv);
+	if ( (RETVAL = rewrite_event(fd, pv)) < 0 )
+	  XSRETURN_UNDEF;
   }
   OUTPUT:
 	RETVAL
@@ -507,6 +513,8 @@ fopen_datafile(dfile, cflags)
 		flags = O_RDONLY;
 
 	RETVAL = open_datafile(dfile, flags);
+	if (RETVAL < 0)
+	   XSRETURN_UNDEF;
   }
   OUTPUT:
 	RETVAL
