@@ -749,7 +749,7 @@ Eof1
     print <<Eof;
     <h4>${variable}</h4>
     <A href="${rrdgraph_cgi}?rrdsubdir=$devicename&rrdfile=${rrdfile}&title=${devicename}&legend=${variable}&timescale=A&mode=html">
-    <IMG SRC="${rrdgraph_cgi}?rrdsubdir=$devicename&rrdfile=${rrdfile}&title=${devicename}%20(${var})&legend=${variable}&timescale=d&mode=gif" >
+    <IMG SRC="${rrdgraph_cgi}?rrdsubdir=$devicename&rrdfile=${rrdfile}&title=${devicename}%20(${variable})&legend=${variable}&timescale=d&mode=gif" >
     </A>
     <hr>
 Eof
