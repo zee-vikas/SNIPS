@@ -1,1 +1,0 @@
-See ../BUGS file (in source directory).
