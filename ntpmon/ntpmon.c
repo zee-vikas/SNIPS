@@ -12,6 +12,10 @@
 
 /*
  * $Log$
+ * Revision 1.2  2001/08/13 03:39:38  vikas
+ * Was calling bzero() after filling the struct from get_inet_address()
+ * (bug reported by m.vevea@seafloor.com)
+ *
  * Revision 1.1  2001/08/01 01:19:16  vikas
  * Now sets stratum to 16 instead of -1.
  *
@@ -64,27 +68,30 @@ ntpmon(host)
 
   pktsize = CTL_HEADER_LEN;
 
+  bzero((char *)&hostaddr, sizeof(hostaddr));
+
   /* setup the socket */
   if(get_inet_address(&hostaddr, host) < 0)
     return 255;				/* indicate error */
 
   sockfd = socket(AF_INET, SOCK_DGRAM, 0);
   /*
-    * Sometimes, you really want the data to come from a specific IP addr
-    * on the machine, i.e. for firewalling purposes
-    */
+   * Sometimes, you really want the data to come from a specific IP addr
+   * on the machine, i.e. for firewalling purposes
+   */
  
   if ( (lcladdr = getenv("SNIPS_LCLADDR")) ||
        (lcladdr = getenv("NOCOL_LCLADDR")) )
   {
-    bzero((char *)&hostaddr, sizeof(hostaddr));
-    hostaddr.sin_family = AF_INET;
-    hostaddr.sin_addr.s_addr = inet_addr(lcladdr);
-    if (bind(sockfd, (struct sockaddr *)&hostaddr, sizeof(hostaddr)) < 0) {
-      perror("bind");
+    struct sockaddr_in lcl_hostaddr;
+
+    bzero((char *)&lcl_hostaddr, sizeof(lcl_hostaddr));
+    lcl_hostaddr.sin_family = AF_INET;
+    lcl_hostaddr.sin_addr.s_addr = inet_addr(lcladdr);
+    if (bind(sockfd, (struct sockaddr *)&lcl_hostaddr, sizeof(lcl_hostaddr)) < 0) {
+      perror("bind LCLADDR");
     }
   }
-  bzero((char *)&hostaddr, sizeof(hostaddr));
 
   hostaddr.sin_family = AF_INET;
   hostaddr.sin_port = htons(NTP_PORT);
