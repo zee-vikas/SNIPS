@@ -96,18 +96,9 @@ int
 copy_events_datafile(ofile, nfile)
 	char *ofile;
 	char *nfile;
-  PREINIT:
-	int ofd, nfd;
   CODE:
   {
-	ofd = open_datafile(ofile, O_RDONLY);
-	nfd = open_datafile(nfile, O_RDWR|O_CREAT|O_TRUNC);
-	if (ofd < 0 || nfd < 0) {
-		croak("FATAL copy_events_datafile()- cannot open() %s\n",
-			sys_errlist[errno]);
-	}
-	RETVAL = copy_events_datafile(ofd, nfd);
-	close_datafile(ofd);  close_datafile(nfd);
+	RETVAL = copy_events_datafile(ofile, nfile);
   }
   OUTPUT:
 	RETVAL
@@ -239,7 +230,7 @@ new_event()
 	SV *sv;
   CODE:
   {
-	bzero(&v, sizeof (EVENT));
+	init_event(v);
 	sv = newSVpv((char *)&v, sizeof(EVENT));	
 	RETVAL = (EVENT *)SvPV(sv, PL_na);
   }
@@ -265,34 +256,42 @@ init_event(pv)
 void
 alter_event(pv, sender, sitename, siteaddr, varname, varunits)
 	EVENT *pv;
-	char  *sender;
-	char  *sitename;
-	char  *siteaddr;
-	char  *varname;
-	char  *varunits;
+	SV  *sender;
+	SV  *sitename;
+	SV  *siteaddr;
+	SV  *varname;
+	SV  *varunits;
   CODE:
   {
-	if (sender) strncpy(pv->sender, sender, sizeof(pv->sender));
+	if (SvOK(sender))
+	  strncpy(pv->sender, SvPV(sender, PL_na), sizeof(pv->sender));
 
-	if (sitename) strncpy(pv->site.name, sitename, sizeof(pv->site.name));
-	if (siteaddr) strncpy(pv->site.addr, siteaddr, sizeof(pv->site.addr));
+	if (SvOK(sitename))
+	  strncpy(pv->site.name, SvPV(sitename, PL_na), sizeof(pv->site.name));
+	if (SvOK(siteaddr))
+	  strncpy(pv->site.addr, SvPV(siteaddr, PL_na), sizeof(pv->site.addr));
 
-	if (varname) strncpy(pv->var.name, varname, sizeof(pv->var.name));
-	if (varunits) strncpy(pv->var.units, varunits, sizeof(pv->var.units));
+	if (SvOK(varname))
+	  strncpy(pv->var.name, SvPV(varname, PL_na), sizeof(pv->var.name));
+	if (SvOK(varunits))
+	  strncpy(pv->var.units, SvPV(varunits, PL_na), sizeof(pv->var.units));
   }
 
 
 ## given a status, value and maxseverity, updates the structure
 int
-update_event(pv, status, value, maxsev)
+update_event(pv, status, value, thres, maxsev)
 	EVENT *pv;
 	int   status;
 	unsigned long value;
+	SV* thres;
 	int   maxsev;
-
   CODE:
   {
-	RETVAL = update_event(pv, status, value, maxsev);
+	if (!SvOK(thres))
+	  RETVAL = update_event(pv, status, value, pv->var.threshold, maxsev);
+	else
+	  RETVAL = update_event(pv, status, value, (unsigned long)SvNV(thres), maxsev);
   }
   OUTPUT:
 	RETVAL
@@ -488,18 +487,6 @@ _pack_event(eventhash)
 	RETVAL
 
 
-## Returns file descriptor (not FILE *)
-int
-open_datafile(dfile, flags)
-	char *dfile;
-	int flags;
-  CODE:
-  {
-	RETVAL = open_datafile(dfile, flags);
-  }
-  OUTPUT:
-	RETVAL
-
 ## open_datafile but accepts fopen() style flags (r, w, r+, w+)
 int
 fopen_datafile(dfile, cflags)
@@ -515,7 +502,11 @@ fopen_datafile(dfile, cflags)
 	else if (!strcmp(cflags, "r+"))
 		flags = O_RDWR;
 	else if (!strcmp(cflags, "w+"))
-		flags = (O_RDWR | O_CREAT | O_TRUNC);
+		flags = (O_RDWR | O_TRUNC | O_CREAT);
+	else if (!strcmp(cflags, "a"))
+		flags = (O_WRONLY | O_CREAT | O_APPEND);
+	else if (!strcmp(cflags, "a+"))
+		flags = (O_RDWR | O_CREAT | O_APPEND);
 	else
 		flags = O_RDONLY;
 
