@@ -88,7 +88,7 @@ install:
 	 fi 
 	@echo  "See $(SRCDIR)/perl-monotors/README for further customizations"
 
-CLEANFILES = *.pid *.seds
+CLEANFILES = *.pid *.seds hostmon-osclients/*.seds
 
 clean-local:
 	@-cd $(CMUSNMP)/snmpapps; make realclean

@@ -93,5 +93,5 @@ install:
 
 clean:
 	@-cd $(CMUSNMP)/snmpapps; make realclean
-	rm -f $(DIRT) *.pid *.seds
+	rm -f $(DIRT) *.pid *.seds hostmon-osclients/*.seds
 
