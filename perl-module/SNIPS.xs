@@ -6,6 +6,10 @@
  *	Vikas Aggarwal (vikas@navya_.com)  June 2000
  *
  * $Log$
+ * Revision 1.0  2001/07/14 03:33:59  vikas
+ * SNIPS perl library interface to the C library. Tough to find
+ * out if PL_na is defined or not in older Perl.
+ *
  * Revision 0.13  2000/10/06 03:37:23  vikas
  * Working checkpoint version
  *
@@ -41,9 +45,13 @@ extern "C" {
 #include "snips.h"
 #undef _MAIN_
 
+/* Older perl define's na instead of PL_na */
 #ifndef PL_na
-# define PL_na na
+# ifdef OLDPERL
+#  define PL_na  na
+# endif
 #endif
+
 
 MODULE = SNIPS		PACKAGE = SNIPS		PREFIX = snips_
 
@@ -252,11 +260,12 @@ init_event(pv)
 # Allow direct updating of various event fields. Else perl will have
 # to unpack and then repack.
 void
-alter_event(pv, sender, devicename, deviceaddr, varname, varunits)
+alter_event(pv, sender, devicename, deviceaddr, subdevice, varname, varunits)
 	EVENT *pv;
 	SV  *sender;
 	SV  *devicename;
 	SV  *deviceaddr;
+	SV  *subdevice;
 	SV  *varname;
 	SV  *varunits;
   CODE:
@@ -268,6 +277,8 @@ alter_event(pv, sender, devicename, deviceaddr, varname, varunits)
 	  strncpy(pv->device.name, SvPV(devicename, PL_na), sizeof(pv->device.name));
 	if (SvOK(deviceaddr))
 	  strncpy(pv->device.addr, SvPV(deviceaddr, PL_na), sizeof(pv->device.addr));
+	if (SvOK(subdevice))
+	  strncpy(pv->device.subdev, SvPV(subdevice, PL_na), sizeof(pv->device.subdev));
 
 	if (SvOK(varname))
 	  strncpy(pv->var.name, SvPV(varname, PL_na), sizeof(pv->var.name));
