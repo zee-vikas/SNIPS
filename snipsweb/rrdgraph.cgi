@@ -66,7 +66,7 @@ $RRD_DBDIR = "$snipsroot/rrddata" unless $RRD_DBDIR;	# SET_THIS
 # else they will be written directly to stdout.
 # This directory must be writable by the httpd user, else you will have
 # to generate these image files offline.
-$IMAGE_CACHEDIR = "$snipsroot/rrd-imgcache" unless $IMAGE_CACHEDIR;
+$IMAGE_CACHEDIR = "$snipsroot/rrd-images" unless $IMAGE_CACHEDIR;
 
 $RRDIMAGE_URL_PREFIX = "/rrd-images/" unless $RRDIMAGE_URL_PREFIX;
 
