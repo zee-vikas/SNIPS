@@ -32,11 +32,7 @@ all:
 
 install:	installdir
 	@for f in $(CGI) ; do \
-	 if [ -f $(CGIDIR)/$$f ]; then \
-		echo "Not overwriting existing $(CGIDIR)/$$f" ;\
-	 else \
 		$(INSTALL) -c -m 755 $$f.seds $(CGIDIR)/$$f ; \
-	 fi ;\
 	done
 	@for f in $(CONFIG) ; do \
 	 if [ -f $(ETCDIR)/$$f ]; then \
