@@ -493,10 +493,10 @@ sub doHistory {
 
   while (<FILE>)
   {
-    if ( /^(.*)\s+\[(.*)\]:\s+SITE|DEVICE\s+$devicename.*\s+$deviceaddr.*\s+VAR\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+LEVEL\s+(\S+)\s+/i )
+    if ( /^(.*)\s+\[(.*)\]:\s+(SITE|DEVICE)\s+$devicename.*\s+$deviceaddr.*\s+VAR\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+LEVEL\s+(\S+)\s+/i )
     {
       print "<TR bgcolor=\"$rowcolor[$cnt % 2]\"> \n";
-      foreach $str ($cnt, "$1", "$2", "$3", "$4", "$5", "$6", "$7") {
+      foreach $str ($cnt, "$1", "$2", "$4", "$5", "$6", "$7", "$8") {
 	print "\t <td><font face=\"arial,helvetica\" size=\"2\"> $str </font> </td> \n";
       }
       print "</TR>\n";
