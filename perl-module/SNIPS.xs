@@ -16,6 +16,14 @@ extern "C" {
 }
 #endif
 
+/* Older perl.h files have a debug which conflicts with snips.h */
+#include "patchlevel.h"
+#ifdef PATCHLEVEL
+# if (PATCHLEVEL < 5)
+#  define OLDPERL
+# endif
+#endif
+
 #define _MAIN_
 #include "snips.h"
 #undef _MAIN_
@@ -165,6 +173,7 @@ int
 snips_get_rrd_flag()
   CODE:
   {
+	printf ("XSUB called to get rrd\n");	/* FIX FIX */
 	RETVAL = dorrd;
   }
   OUTPUT:
@@ -175,6 +184,7 @@ snips_set_rrd_flag(i)
 	int i;
   CODE:
   {
+	printf ("XSUB called with %d\n", i);	/* FIX FIX  */
 	if (i == 0) dorrd = 0;
 	else dorrd += i;
   }
@@ -230,7 +240,7 @@ new_event()
 	SV *sv;
   CODE:
   {
-	init_event(v);
+	init_event(&v);
 	sv = newSVpv((char *)&v, sizeof(EVENT));	
 	RETVAL = (EVENT *)SvPV(sv, PL_na);
   }
@@ -523,5 +533,109 @@ close_datafile(fd)
   {
 	close_datafile(fd);
   }
+
+# ######   ######   ######   ######   ######   ######
+
+MODULE = SNIPS		PACKAGE = SNIPS::globals 	PREFIX = snips_
+
+# This is used to 'tie' the global C variables to Perl (see perltie.html)
+
+SV *
+snips_TIESCALAR2(class, var)
+	char *class;
+	SV *var;
+  PREINIT:
+	char *s;
+	SV *newsv;
+  CODE:
+  {
+	s = SvPV(var, PL_na);
+	if (class == NULL || *class == '\0') {
+		fprintf(stderr, "TIESCALAR got invalid class reference\n");
+		XSRETURN_UNDEF ;
+	}
+	if (!SvOK(var) || s == NULL || *s == '\0') {
+		fprintf(stderr, "TIESCALAR got invalid variable\n");
+		XSRETURN_UNDEF ;
+	}
+	/* printf("tiescalar: class= %s, var= %s\n", class, s);	/*  */
+	printf("1\n");
+	newsv = newRV_noinc(var); /* newSVpv(s, 0); */
+	printf("2\n");
+	RETVAL = sv_bless(newsv, gv_stashpv(class, FALSE)); /* */
+	printf("3\n");
+
+	/* RETVAL = newSVrv(var, class);	/* FIX FIX */
+
+  }
+  OUTPUT:
+	RETVAL
+
+
+SV *
+snips_FETCH(ref)
+	SV *ref;
+  PREINIT:
+	char *s;
+  CODE:
+  {
+	if (!SvROK(ref))	/* not a reference */
+		XSRETURN_UNDEF ;
+
+	/* ref is a double reference */
+	s = SvPV(SvRV(ref), PL_na);	/* extract what we want to fetch */
+	fprintf(stderr, "debug: trying to get global '%s'\n", s); /* FIX */
+
+	if (!strcmp(s, "debug"))	   RETVAL = newSViv(debug);
+	else if (!strcmp(s, "do_reload"))  RETVAL = newSViv(do_reload);
+	else if (!strcmp(s, "autoreload")) RETVAL = newSViv(autoreload);
+	else if (!strcmp(s, "dorrd"))	   RETVAL = newSViv(dorrd);
+	else if (!strcmp(s, "configfile")) RETVAL = newSVpv(get_configfile(), 0);
+	else if (!strcmp(s, "datafile"))   RETVAL = newSVpv(get_datafile(), 0);
+	else {
+	  if (debug)	/* */
+	    fprintf(stderr, "Error: trying to fetch unknown global '%s'\n", s);
+
+	  XSRETURN_UNDEF ;
+	}
+  }
+  OUTPUT:
+	RETVAL
+
+
+## This sets the global variables
+SV *
+snips_STORE(ref, value)
+	SV *ref;
+	SV *value;
+  PREINIT:
+	char *s;
+  CODE:
+  {
+	if (!SvROK(ref))	/* not a reference */
+		XSRETURN_UNDEF ;
+	s = SvPV(SvRV(ref), PL_na);	/* extract what we want to fetch */
+
+	fprintf(stderr, "debug: trying to SET global '%s'\n", s); /* FIX */
+
+	if (!strcmp(s, "debug")) 	   debug = SvIV(value);
+	else if (!strcmp(s, "do_reload"))  do_reload = SvIV(value);
+	else if (!strcmp(s, "autoreload")) autoreload = SvIV(value);
+	else if (!strcmp(s, "dorrd"))      dorrd = SvIV(value);
+	else if (!strcmp(s, "configfile")) set_configfile(SvPV(value, PL_na));
+	else if (!strcmp(s, "datafile"))   set_datafile(SvPV(value, PL_na));
+	else {
+	  if (debug)
+	    fprintf(stderr, "Error: trying to set unknown global '%s'\n", s);
+	  XSRETURN_UNDEF ;
+	}
+	printf ("debug %d, doreload %d, autoreload %d, dorrd %d\n",
+		debug, do_reload, autoreload, dorrd);
+	if (!strcmp(s, "datafile")) { printf("Set datafile to %s\n", get_datafile()); }
+	RETVAL = value;		/* return what we were sent */
+  }
+  OUTPUT:
+	RETVAL
+
 
 # ######   ######   ######   ######   ######   ######
