@@ -26,4 +26,6 @@ ippingmon	critical	|/usr/local/snips/etc/beep_oncall
 ippingmon	error		|/usr/local/snips/etc/beep_oncall^peter
 
 ## Call notifier.pl when device goes into critical and also out of critical.
-ippingmon	critical	|/usr/local/snips/bin/notifier.pl
+#  Note the '-' argument to denote stdin for notifier.pl
+ippingmon	critical	|/usr/local/snips/bin/notifier.pl^-
+

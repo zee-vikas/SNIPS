@@ -1,4 +1,0 @@
-'rpcping' is useful to check the status of Unix hosts-- it checks to see if
-the RPC portmapper is alive (since a machine might be down but still respond
-to ping).
-
