@@ -7,7 +7,8 @@ use ExtUtils::MakeMaker;
 # See lib/ExtUtils/MakeMaker.pm for details of how to influence
 # the contents of the Makefile that is written.
 # e.g.
-#	perl Makefile.PL CC="$(CC)" OPTIMIZE="$(CFLAGS)" LIBS="$(LIBS)" \
+#	perl Makefile.PL CC="$(CC)" LD="$(CC)" \
+#		OPTIMIZE="$(CFLAGS)" LIBS="$(LIBS)" \
 #		INSTALLSITELIB=$(ROOTDIR)/lib/perl \
 #		INSTALLSITEARCH=$(ROOTDIR)/lib/perl \
 #		INSTALLARCHLIB=$(ROOTDIR)/lib/perl
@@ -20,7 +21,8 @@ WriteMakefile(
     'NAME'	=> 'SNIPS',
     'VERSION_FROM' => 'SNIPS.pm', # finds $VERSION
     'LIBS'	=> ["-L../lib -lsnips"],   # e.g., '-lm' 
-    'DEFINE'	=> "-O",     # e.g., '-DHAVE_SOMETHING' 
+    'OPTIMIZE'	=> "-O",
+#    'LINKTYPE'	=> "static",	# 'static' or 'dynamic'
     'INC'	=> '-I../include',     # e.g., '-I/usr/include/other'
     #
     'depend'	=> {'SNIPS.c' => '../lib/libsnips.a'},
