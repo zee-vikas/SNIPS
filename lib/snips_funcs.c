@@ -11,6 +11,9 @@
 
 /*
  * $Log$
+ * Revision 1.1  2001/07/28 01:48:32  vikas
+ * standalone() checks to ensure it does not kill current process.
+ *
  * Revision 1.0  2001/07/14 03:17:17  vikas
  * Initial revision
  *
@@ -62,7 +65,7 @@ snips_startup()
    * Create PID file on startup
    */
   s = (char *)get_pidfile();
-  if (standalone(s) == -1)    /* Kill prev running process    */
+  if (standalone(s) < 0)    /* Kill prev running process    */
   {
     fprintf(stderr, "%s: Error in standalone...exiting\n", prognm);
     exit (1);
@@ -245,12 +248,13 @@ standalone(pidfile)
   char *pidfile;		/* path of the pid file */
 {
   FILE *pidf ;
-  int oldpid = 0, newpid = 0;
+  int oldpid = 0, mypid = 0;
   int fd ;
   char hostname[MAXLINE], thishostname[MAXLINE] ;
     
   gethostname(thishostname, sizeof(thishostname) -1) ;
   thishostname[MAXLINE - 1] = '\0' ;
+  mypid = getpid();
 
   if ( (pidf =fopen (pidfile, "r")) != NULL)	/* file exists...	*/
   {
@@ -275,6 +279,13 @@ standalone(pidfile)
       }
       else					/* on proper host */
       {
+	if (oldpid == mypid)
+	{	/* standalone() probably called twice, ignore */
+	  fprintf(stderr,
+		  "(standalone) %s: Cannot kill self\n", prognm);
+	  return (0);
+	}
+
 	if (kill (oldpid, SIGKILL) != 0 && errno != ESRCH)
 	{
 	  fprintf(stderr,
@@ -293,18 +304,17 @@ standalone(pidfile)
    * Here only if all other processes have been killed
    */
 
-  newpid=getpid();
   if ( (pidf = fopen(pidfile, "w")) == NULL)	/* create file	*/
   {
     fprintf(stderr, "(standalone): fopen ");
     perror(pidfile);	
     return(-1);
   }
-  fprintf (pidf,  "%d\n%s\n", newpid, thishostname);	/* Store present pid */
+  fprintf (pidf,  "%d\n%s\n", mypid, thishostname);	/* Store present pid */
   fflush(pidf);
   fclose(pidf) ;
   fprintf(stderr, "(%s).. locked pid-file, started new process (pid=%d)\n",
-	  prognm, newpid);
+	  prognm, mypid);
     
   return (0) ;
 }
