@@ -20,31 +20,34 @@ print "ok 1\n";
 # (correspondingly "not ok 13") depending on the success of chunk 13
 # of the test code):
 
-SNIPS::startup();	# pass reference to read_conf function
+SNIPS::main(\&readconf, undef, \&do_test);
+# SNIPS::startup();
 $datafile = $SNIPS::datafile;
 $configfile = $SNIPS::configfile;
-print "Datafile = $datafile, config= $configfile\n";
+print "\t Datafile = $datafile\n\t Configfile= $configfile\n";
 
+print "Testing event functions:\n";
 open(DATA, "> $datafile");
 SNIPS::write_dataversion(DATA);
 
 $event = SNIPS::new_event();
-print "got new_event\n";
+print "\tgot new_event\n";
 
 SNIPS::init_event($event);
-print "done init_event\n";
+print "\tdone init_event\n";
 
 SNIPS::update_event($event, 1, 54321, 3);
-print "done update_event\n";
+print "\tdone update_event\n";
 
 $bytes = SNIPS::write_event(DATA, $event);
-print "done write_event ($bytes bytes)\n";
+print "\tdone write_event ($bytes bytes)\n";
 
 SNIPS::update_event($event, 1, 12345, 3);
 $bytes = SNIPS::write_event(DATA, $event);
-print "done write_event ($bytes bytes)\n";
+print "\tdone write_event ($bytes bytes)\n";
 
 close (DATA);
+print "DONE\n";
 
 @fields = SNIPS::get_eventfields();
 print "Event fields are:\n   ", join (" ", @fields), "\n";
@@ -52,6 +55,7 @@ print "Event fields are:\n   ", join (" ", @fields), "\n";
 ($status, $threshold, $maxseverity) = SNIPS::calc_status(2, 1, 3, 5);
 print "Tested calc_status()\n";
 
+print "Now reading back events written to $datafile\n";
 open(DATA, "< $datafile");
 SNIPS::read_dataversion(DATA);
 while ( ($event = SNIPS::read_event(DATA) ) )
@@ -84,11 +88,16 @@ while ( ($event = SNIPS::read_event(DATA) ) )
 close(DATA);
 
 if ($SNIPS::do_reload > 0) {
-  $DATA = SNIPS::reload(DATA);
+  print "do_reload is $SNIPS::do_reload\n";
+  my $FH = SNIPS::reload(\&readconf);
 }
 
 #SNIPS::done();
 
 sub readconf {
-  print "This is readconf() subroutine\n";
+  print "This is subroutine readconf()\n";
+}
+
+sub do_test {
+  print "This is function dotest\n";
 }
