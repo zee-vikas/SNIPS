@@ -1,0 +1,38 @@
+#
+# $Header$
+#
+# Makefile for etherload.
+#
+##
+#	-DDEBUG for extended debugging messages
+# Also define one of the following in CFLAGS (see os.h)
+#	IRIX40, IRIX51, SUNOS4, SUNOS5, SVR4, ULTRIX, OSF1,
+#	FREEBSD, BSDI, LINUX
+#	
+## Any program specific defines or libraries
+PROGCDEFS =
+PROGLIBS =
+
+TARG =	etherload
+OBJS =	bpf.o etherload.o dlpi.o main.o nit.o pfilt.o snoop.o \
+	linux.o util.o snips_specific.o get_devlist.o
+INITFILES = etherload
+
+$(TARG):  $(OBJS)
+	$(CC) -o etherload $(CFLAGS) $(OBJS) $(LIBS)
+
+standalone:  clean
+	make CFLAGS="$(CFLAGS) -DSTANDALONE" $(TARG)
+
+install: $(TARG)
+	$(INSTALL) -c -m 4750 $(TARG) $(BINDIR)
+	@if [ `whoami` = "root" ]; then \
+		chown root $(BINDIR)/$(TARG) ;\
+		ls -lg $(BINDIR)/$(TARG) ;\
+	else \
+		echo "";echo "___Installed $(TARG) needs to be root suid___" ;\
+		echo "Do as root manually" ;\
+	fi
+
+clean:
+	rm -f $(DIRT) $(OBJS) $(TARG)

@@ -1,0 +1,130 @@
+#
+# $Header$
+#
+# Makefile for etherload. Extracted from the makefile for 'nfswatch'.
+# 
+# ********
+
+#
+# Choose an appropriate value for "OS" from the ones below (this can be
+# automatically detected if left blank):
+#
+#	IRIX40		Silicon Graphics IRIX 4.0
+#	IRIX51		Silicon Graphics IRIX 5.1
+#	SUNOS4		Sun Microsystems SunOS 4.x
+#	SUNOS5		Sun Microsystems SunOS 5.x (Solaris 2.x)
+#	SVR4		AT&T System V Release 4
+#	ULTRIX		Digital Equipment Ultrix 4.x
+#	OSF1		Digital Equipment OSF/1 V1.3 and later
+#	BSDI		BSDI/386 or FreeBSD
+#
+OS=
+
+#
+# Set BINDIR, MANDIR, and MANSUF to appropriate values for your system.
+#
+TOP =	/usr/snips
+
+BINDIR=	$(TOP)/bin
+ETCDIR= $(TOP)/etc
+
+## For the SNIPS version of etherload:
+#	CDEFS = -DSNIPS
+#	CFLAGS = -I../include -L../lib
+#	LIBS = -lsnips
+#
+#  -DDEBUG for extended debugging messages
+#
+CC =		cc
+CDEFS =		$(SYSDEFS)
+CFLAGS =	-g
+#LIBS =		-lsnips
+INSTALL =	install
+
+#### Rest can be left alone.
+IRIX40CFLAGS=	$(CFLAGS) -DIRIX40 -cckr
+IRIX51CFLAGS=	$(CFLAGS) -DIRIX51 -DIRIX40 -cckr -D_BSD_SIGNALS
+SUNOS4CFLAGS=	$(CFLAGS) -DSUNOS4
+SUNOS5CFLAGS=	$(CFLAGS) -DSUNOS5
+SVR4CFLAGS=	$(CFLAGS) -DSVR4
+ULTRIXCFLAGS=	$(CFLAGS) -DULTRIX
+OSF1CFLAGS=	$(CFLAGS) -DOSF1
+BSDICFLAGS=	$(CFLAGS) -DBSDI
+LINUXCFLAGS=	$(CFLAGS) -DLINUX
+
+IRIX40LIBS=	$(LIBS) -lsun
+IRIX51LIBS=	$(LIBS)
+SUNOS4LIBS=	$(LIBS)
+SUNOS5LIBS=	$(LIBS) -lnsl -lsocket
+SVR4LIBS=	$(LIBS) -lnsl -lsocket 
+ULTRIXLIBS=	$(LIBS)
+OSF1LIBS=	$(LIBS)			# pfopen() part of C lib
+#OSF1LIBS=	$(LIBS) pfopen.c	# pfopen required in older OSF1
+BSDILIBS=	$(LIBS)
+LINUXLIBS=	$(LIBS)
+
+TARG=	etherload
+HDRS=	etherload.h
+OBJS=	bpf.o etherload.o dlpi.o main.o nit.o pfilt.o snoop.o linux.o \
+	util.o snips_specific.o get_devlist.o
+
+all:	os-etherload
+
+os-etherload:
+	@if [ "$(OS)" = "" ]; then \
+	    OS=`uname -s -r`; \
+	fi; \
+	case "$$OS" in \
+	IRIX40|IRIX\ 4*) \
+	    make CC="$(CC)" CDEFS="$(CDEFS)" CFLAGS="$(IRIX40CFLAGS)" LIBS="$(IRIX40LIBS)" etherload; \
+	    ;; \
+	IRIX51|IRIX\ 5*) \
+	    make CC="$(CC)" CDEFS="$(CDEFS)" CFLAGS="$(IRIX51CFLAGS)" LIBS="$(IRIX51LIBS)" etherload; \
+	    ;; \
+	SUNOS4|SunOS\ 4*) \
+	    make CC="$(CC)" CDEFS="$(CDEFS)" CFLAGS="$(SUNOS4CFLAGS)" LIBS="$(SUNOS4LIBS)" etherload; \
+	    ;; \
+	SUNOS5|SunOS\ 5*) \
+	    make CC="$(CC)" CDEFS="$(CDEFS)" CFLAGS="$(SUNOS5CFLAGS)" LIBS="$(SUNOS5LIBS)" etherload; \
+	    ;; \
+	SVR4|System\ V\ Release\ 4*) \
+	    make CC="$(CC)" CDEFS="$(CDEFS)" CFLAGS="$(SVR4CFLAGS)" LIBS="$(SVR4LIBS)" etherload; \
+	    ;; \
+	ULTRIX\ *|Ultrix\ *|ultrix\ *) \
+	    make CC="$(CC)" CDEFS="$(CDEFS)" CFLAGS="$(ULTRIXCFLAGS)" LIBS="$(ULTRIXLIBS)" etherload; \
+	    ;; \
+	OSF1\ *|OSF\ *) \
+	    make CC="$(CC)" CDEFS="$(CDEFS)" CFLAGS="$(OSF1CFLAGS)" LIBS="$(OSF1LIBS)" etherload; \
+	    ;; \
+	BSDI\ *|BSD386\ *|BSD/386\ *|FreeBSD\ *) \
+	    make CC="$(CC)" CDEFS="$(CDEFS)" CFLAGS="$(BSDICFLAGS)" LIBS="$(BSDILIBS)" etherload; \
+	    ;; \
+	Linux\ *) \
+	    make CC="$(CC)" CDEFS="$(CDEFS)" CFLAGS="$(LINUXCFLAGS)" LIBS="$(LINUXLIBS)" etherload; \
+	    ;; \
+	*) \
+	    echo "OS=$$OS is not a supported operating system."; \
+	    exit 1; \
+	    ;; \
+	esac
+
+
+etherload: $(OBJS)
+	$(CC) -o etherload $(CFLAGS) $(OBJS) $(LIBS)
+
+.c.o:
+	$(CC) -c $(CFLAGS) $(CDEFS) $<
+
+install: all
+	$(INSTALL) -c -m 4750 $(TARG) $(BINDIR)
+	@if [ `whoami` = "root" ]; then \
+		chown root $(BINDIR)/$(TARG) ;\
+		ls -lg $(BINDIR)/$(TARG) ;\
+	else \
+		echo "";echo "___Installed $(TARG) needs to be root suid___" ;\
+		echo "Do as root manually" ;\
+	fi
+
+clean:
+	rm -f \#* a.out core etherload $(OBJS) *.BAK *.CKP
+
