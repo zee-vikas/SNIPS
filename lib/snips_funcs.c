@@ -11,6 +11,9 @@
 
 /*
  * $Log$
+ * Revision 1.3  2001/08/22 01:58:17  vikas
+ * Now recognizes CONFIGDIR keyword also (crawford.6@sociology.osu.edu)
+ *
  * Revision 1.2  2001/08/01 23:21:07  vikas
  * Just added some debug statements.
  *
@@ -143,7 +146,9 @@ read_global_config()
 	dataDir = Strdup(tok);
       }
     }
-    else if (! strncasecmp(tok, "ETCDIR", strlen("ETCDIR")) ) {
+    else if ( (! strncasecmp(tok, "ETCDIR", strlen("ETCDIR"))) ||
+	      (! strncasecmp(tok, "CONFIGDIR", strlen("CONFIGDIR")))
+	    ) {
       tok = strtok(NULL, " \t");
       if (tok && *tok) {
 	if (configDir != ETCDIR) free (configDir);
