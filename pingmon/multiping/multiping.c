@@ -9,15 +9,15 @@ static char     sccsid[] = "@(#)ping.c	5.9 (Berkeley) 5/12/91";
 #endif				/* not lint */
 
 #ifndef lint
-static char     rcsid[] = "$Header$";
+static char rcsid[] = "$Header$" ;
 #endif
 
 /*
- * P I N G . C
+ * (Multi) P I N G . C
  * 
  * Using the InterNet Control Message Protocol (ICMP) "ECHO" facility, measure
  * round-trip-delays and packet loss across network paths.
- *
+ * 
  * Author -
  *      Mike Muuss
  *      U. S. Army Ballistic Research Laboratory
@@ -33,15 +33,16 @@ static char     rcsid[] = "$Header$";
  * could always be gathered. This program has to run SUID to ROOT to access
  * the ICMP socket.
  *
- * Note: This revision was an intermediate version and was reconstructed
- * backwards, after-the-fact, in case we ever want to come back to it.
- * If you're using this version, be sure to check the bit manipulations
- * used to do the sequencing, and that prefinish() works properly.
- * The only other difference is that in the "real" version, there is a
- * separate usage() function and an output_new_style() function.
- *
  * $Log$
- * Revision 1.2  1992/06/10 14:58:39  spencer
+ * Revision 1.3  1992/06/10 15:04:00  spencer
+ * Realized that since recvfrom() tells where the packet came from, I don't
+ * need to use the upper four bits to keep track of it (as long as the
+ * same IP# doesn't show up more than once on the command line).  So I
+ * stopped using the upper four bits as a tag, freeing up the full 16 bits
+ * for the sequence number.  Made a separate usage() function and an
+ * output_new_style() function for clarity.
+ *
+ * Revision 1.2  1992/06/10  14:58:39  spencer
  * First completed version of multiping.  Uses upper four bits of the ICMP
  * sequence number field in the ICMP header to keep track of which remote
  * site the echo is going to or coming from.
@@ -56,7 +57,6 @@ static char     rcsid[] = "$Header$";
  * Initial revision
  *
  */
-
 #include <stdio.h>
 #include <netdb.h>
 #include <unistd.h>
@@ -75,7 +75,7 @@ static char     rcsid[] = "$Header$";
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <netinet/ip_icmp.h>
-#include "ping.h"		/* all sorts of nasty #defines */
+#include <netinet/ip_var.h>
 
 #include "multiping.h"		/* all sorts of nasty #defines */
 #define GLOBALS
@@ -86,7 +86,7 @@ int options;			/* F_* options */
 int             max_dup_chk = MAX_DUP_CHK;
 int             s;		/* socket file descriptor */
 u_char          outpack[MAXPACKET];
-int             ident;		/* process id to identify our packets */
+char            BSPACE = '\b';	/* characters written for flood */
 char            DOT = '.';
 unsigned short  ident;		/* process id to identify our packets */
 
@@ -100,7 +100,8 @@ int             interval = 1;	/* interval between packets */
 int             timing;		/* flag to do timing */
 long            tmin = MAXLONG;	/* minimum round trip time */
 long            tmax;		/* maximum round trip time */
-char           *pr_addr();
+u_long          tsum;		/* sum of all times, for doing average */
+
 char 		*prognm ;
 char		*pr_addr();
 void            catcher(), prefinish(), finish();
@@ -121,6 +122,7 @@ main(argc, argv)
   char           *target, hnamebuf[MAXHOSTNAMELEN], *malloc();
 #ifdef IP_OPTIONS
   char            rspace[3 + 4 * NROUTES + 1];	/* record route space */
+#endif
 
   prognm = argv[0] ;
   startup();
@@ -132,7 +134,7 @@ main(argc, argv)
         options |= F_TABULAR_OUTPUT;
         break;
       case 'c':
-	  fprintf(stderr, "ping: bad number of packets to transmit.\n");
+        npackets = atoi(optarg);
         if (npackets <= 0) {
 	  fprintf(stderr, "%s: bad number of packets to transmit.\n", prognm);
 	  exit(1);
@@ -140,9 +142,8 @@ main(argc, argv)
         break;
       case 'd':
         options |= F_SO_DEBUG;
-        if (getuid()) {
-	  /* (void)fprintf(stderr, "ping: %s\n", strerror(EPERM)); */
-	  perror("ping");
+        break;
+      case 'f':
         if (getuid()) {  /* only root can use flood option */
 	  fprintf(stderr, "%s: flood: Permission denied.\n", prognm); 
 	  exit(1);
@@ -151,7 +152,7 @@ main(argc, argv)
         setbuf(stdout, (char *) NULL);
         break;
       case 'i':			/* wait between sending packets */
-	  fprintf(stderr, "ping: bad timing interval.\n");
+        interval = atoi(optarg);
         if (interval <= 0) {
 	  fprintf(stderr, "%s: bad timing interval.\n", prognm);
 	  exit(1);
@@ -159,7 +160,7 @@ main(argc, argv)
         options |= F_INTERVAL;
         break;
       case 'l':
-	  fprintf(stderr, "ping: bad preload value.\n");
+        preload = atoi(optarg);
         if (preload < 0) {
 	  fprintf(stderr, "%s: bad preload value.\n", prognm);
 	  exit(1);
@@ -182,11 +183,11 @@ main(argc, argv)
         options |= F_SO_DONTROUTE;
         break;
       case 's':			/* size of packet to send */
-	  fprintf(stderr, "ping: packet size too large.\n");
+        datalen = atoi(optarg);
         if (datalen > MAXPACKET) {
 	  fprintf(stderr, "%s: packet size too large.\n", prognm);
 	  exit(1);
-	  fprintf(stderr, "ping: illegal packet size.\n");
+        }
         if (datalen <= 0) {
 	  fprintf(stderr, "%s: illegal packet size.\n", prognm);
 	  exit(1);
@@ -206,24 +207,24 @@ main(argc, argv)
     usage();
   while (argc--)
     setup_sockaddr(*argv++);
-    fprintf(stderr, "ping: -f and -i are incompatible options.\n");
+
   if (options & F_FLOOD && options & F_INTERVAL) {
     fprintf(stderr, "%s: -f and -i are incompatible options.\n", prognm);
     exit(1);
   }
   if (datalen >= sizeof(struct timeval))	/* can we time transfer */
     timing = 1;
-    fprintf(stderr, "ping: out of memory.\n");
+  packlen = datalen + MAXIPLEN + MAXICMPLEN;
   if (!(packet = (u_char *) malloc((u_int) packlen))) {
     fprintf(stderr, "%s: out of memory.\n", prognm);
     exit(1);
   }
   if (!(options & F_PINGFILLED))
     for (i = 8; i < datalen; ++i)
-  ident = getpid() & 0xFFFF;
+      *datap++ = i;
 
   ident = (unsigned short)(getpid() & 0xFFFF);
-    fprintf(stderr, "ping: unknown protocol icmp.\n");
+
   if (!(proto = getprotobyname("icmp"))) {
     fprintf(stderr, "%s: unknown protocol icmp.\n", prognm);
     exit(1);
@@ -248,7 +249,7 @@ main(argc, argv)
       perror("ping: record route");
       exit(1);
     }
-      "ping: record route not available in this implementation.\n");
+#else
     fprintf(stderr,
       "%s: record route not available in this implementation.\n", prognm);
     exit(1);
@@ -349,23 +350,25 @@ catcher()
  * sequence number is an ascending integer.  The first 8 bytes of the data
  * portion are used to hold a UNIX "timeval" struct in VAX byte-order, to
  * compute the round-trip time.
-  int             which;
+ */
+real_pinger(which)
   int             which;       /* index into dest[] array, tells which */
                                /* site is being pinged */
 {
   register struct icmp *icp;
-  destrec        *dp;
   register int    cc;
   int             i;
+  struct sockaddr_in *to;
 
-  icp->icmp_type = ICMP_ECHO;
-  icp->icmp_code = 0;
+  /* fill in the icmp headr */
+  icp = (struct icmp *) outpack;
   icp->icmp_type = ICMP_ECHO;                   /* this is an echo request */
-  icp->icmp_seq = SEQUENCE(which);
-  icp->icmp_id = ident;		/* ID */
+  icp->icmp_code = 0; 
+  icp->icmp_cksum = 0;
   icp->icmp_seq = dest[which]->ntransmitted++;  /* sequence # */
   icp->icmp_id = ident;		                /* ID # == our pid */
 
+  CLR(which, icp->icmp_seq % max_dup_chk);
 
   /* record time at which we sent the packet out */
   if (timing)
@@ -374,14 +377,14 @@ catcher()
   cc = datalen + 8;		/* skips ICMP portion */
 
   /* compute ICMP checksum here */
-  dp = dest[which];
-  i = sendto(s, (char *) outpack, cc, 0, dp->sockad, sizeof(struct sockaddr));
+  icp->icmp_cksum = in_cksum((u_short *) icp, cc);
+
+  to = &dest[which]->sockad;
   i = sendto(s, (char *) outpack, cc, 0, *((struct sockaddr *)to),
              sizeof(struct sockaddr));
 
   if (i < 0 || i != cc) {
-    to = (struct sockaddr_in *) & dp->sockad;
-    printf("ping: wrote %d chars to %s, ret=%d\n", cc,
+    if (i < 0)
       perror("ping: sendto");
     printf("%s: wrote %d chars to %s, ret=%d\n", prognm, cc,
            inet_ntoa(to->sin_addr.s_addr), i);
@@ -425,6 +428,7 @@ pr_pack(buf, cc, from)
   struct ip      *ip;
   struct timeval  tv, *tp;
   long            triptime;
+  int             hlen, dupflag;
 
   /* record time when we received the echo reply */
   gettimeofday(&tv, (struct timezone *) NULL);
@@ -432,7 +436,7 @@ pr_pack(buf, cc, from)
   /* Check the IP header */
   ip = (struct ip *) buf;
   hlen = ip->ip_hl << 2;
-      fprintf(stderr, "ping: packet too short (%d bytes) from %s\n", cc,
+  if (cc < hlen + ICMP_MINLEN) {
     if (options & F_VERBOSE)
       fprintf(stderr, "%s: packet too short (%d bytes) from %s\n", prognm, cc,
 	inet_ntoa(*(struct in_addr *) & from->sin_addr.s_addr));
@@ -440,18 +444,29 @@ pr_pack(buf, cc, from)
   }
   /* Now the ICMP part */
   cc -= hlen;
-    int             wherefrom, sequence;
+  icp = (struct icmp *) (buf + hlen);
   if (icp->icmp_type == ICMP_ECHOREPLY) {
     int             wherefrom;
+    destrec        *dst;
 
     /* first see if this reply is addressed to our process */
     if (icp->icmp_id != ident)
-    /* decode icmp_seq to figure out where to look in the dest[] array */
-    wherefrom = WHEREFROM(icp->icmp_seq);
-    sequence = icp->icmp_seq & SEQMASK;
+      return;			/* 'Twas not our ECHO */
+
+    /* if so, figure out which site it is in the dest[] array */
+    for (wherefrom = 0; wherefrom < numsites; wherefrom++)
+      if (!memcmp((char *) & (dest[wherefrom]->sockad), from,
+                  sizeof(struct sockaddr_in)))
+        break;
+    if (wherefrom >= numsites) {
+      fprintf(stderr,
+	      "%s: received ICMP_ECHOREPLY from someone we didn't send to!?\n",
+	      prognm);
       return;
+    }
     dst = dest[wherefrom];
     icp->icmp_seq;
+    ++dst->nreceived;
 
     /* figure out round trip time, check min/max */
     if (timing) {
@@ -468,12 +483,14 @@ pr_pack(buf, cc, from)
       if (triptime > dst->tmax)
 	dst->tmax = triptime;
       if (triptime > tmax)
-    if (TST(wherefrom, sequence % max_dup_chk)) {
+        tmax = triptime;
+    }
+
     /* check for duplicate echoes */
     if (TST(wherefrom, icp->icmp_seq % max_dup_chk)) {
       ++dst->nrepeats;
       --dst->nreceived;
-      SET(wherefrom, sequence % max_dup_chk);
+      dupflag = 1;
     } else {
       SET(wherefrom, icp->icmp_seq % max_dup_chk);
       dupflag = 0;
@@ -485,7 +502,7 @@ pr_pack(buf, cc, from)
     if (options & F_FLOOD)
       write(STDOUT_FILENO, &BSPACE, 1);
     else {
-        icp->icmp_seq & SEQMASK);
+      printf("%d bytes from %s: icmp_seq=%u", cc,
         inet_ntoa(*(struct in_addr *) &from->sin_addr.s_addr),
         icp->icmp_seq);
       printf(" ttl=%d", ip->ip_ttl);
@@ -646,6 +663,10 @@ tvsub(out, in)
     out->tv_usec += 1000000;
   }
   out->tv_sec -= in->tv_sec;
+}
+
+/*
+ * In case anyone's using a program that depends on the output being
  * in the non-tabular format
  */
 void
@@ -654,7 +675,7 @@ output_old_style()
   int             i;
   destrec        *dp;
 
-    printf("--- %s ping statistics ---\n", dp->hostname);
+  for (i = 0; i < numsites; i++) {
     dp = dest[i];
     printf("--- %s ping statistics ---\n", pr_addr(dp->sockad.sin_addr.s_addr));
     printf("%ld packets transmitted, ", dp->ntransmitted);
@@ -674,36 +695,13 @@ output_old_style()
 		    dp->tmin, dp->tsum / (dp->nreceived + dp->nrepeats),
 		    dp->tmax);
   }
-/*
- * prefinish -- On first SIGINT, allow any outstanding packets to dribble in
- */
-}
-prefinish()
-void
-  if (nreceived >= ntransmitted   /* quit now if caught up */
-      || nreceived == 0)          /* or if remote is dead */
-    finish();
-  signal(SIGINT, finish);         /* do this only the 1st time */
-  npackets = ntransmitted+1;      /* let the normal limit work */
 }
 
-
-/*
- * finish -- Print out statistics, and give up.
- */
 void
-finish()
-{
 output_new_style()
 {
   int             i;
   destrec        *dp;
-  signal(SIGINT, SIG_IGN);
-  putchar('\n');
-  if (!(options & F_TABULAR_OUTPUT)) {
-    output_old_style();
-    exit(0);
-  }
   long            sent, rcvd, rpts, tmin, tsum, tmax;
 
   printf("-=-=- PING statistics -=-=-\n");
@@ -718,7 +716,8 @@ output_new_style()
     printf("    ----  ----  ----");
   sent = rcvd = rpts = tmax = tsum = 0;
   tmin = MAXLONG;
-    printf("\n%-29.29s  %6ld  %6ld  %6ld%c %3ld%%", dp->hostname,
+  for (i = 0; i < numsites; i++) {
+    dp = dest[i];
     printf("\n%-29.29s  %6ld  %6ld  %6ld%c %3ld%%",
       pr_addr(dp->sockad.sin_addr.s_addr),
       dp->ntransmitted, dp->nreceived, dp->nrepeats,
@@ -735,9 +734,7 @@ output_new_style()
           tmin = dp->tmin;
         if (dp->tmax > tmax)
           tmax = dp->tmax;
-        printf("     --    --    --");
-
-
+        tsum += dp->tsum;
       } else        
         printf("       0     0     0");
   }
@@ -751,6 +748,34 @@ output_new_style()
       printf("    %4ld  %4ld  %4ld", tmin, tsum / rcvd, tmax);
   }
   putchar('\n');
+  exit(0);
+}
+
+/*
+ * prefinish -- On first SIGINT, allow any outstanding packets to dribble in
+ */
+void
+prefinish()
+{
+  if (nreceived >= ntransmitted   /* quit now if caught up */
+      || nreceived == 0)          /* or if remote is dead */
+    finish();
+  signal(SIGINT, finish);         /* do this only the 1st time */
+  npackets = ntransmitted+1;      /* let the normal limit work */
+}
+
+/*
+ * finish -- Print out statistics, and give up.
+ */
+void
+finish()
+{
+  signal(SIGINT, SIG_IGN);
+  putchar('\n');
+  if (!(options & F_TABULAR_OUTPUT))
+    output_old_style();
+  else
+    output_new_style();
   exit(0);
 }
 
@@ -985,7 +1010,7 @@ fill(bp, patp)
   char           *cp;
 
   for (cp = patp; *cp; cp++)
-		     "ping: patterns must be specified as hex digits.\n");
+    if (!isxdigit(*cp)) {
       fprintf(stderr,
 		     "%s: patterns must be specified as hex digits.\n",prognm);
       exit(1);
@@ -1008,8 +1033,17 @@ fill(bp, patp)
   }
 }
 
-  fprintf(stderr,
-		 "usage: ping [-Rdfnqrv] [-c count] [-i wait] [-l preload]\n\t[-p pattern] [-s packetsize] host\n");
+usage()
+{
+  fprintf(stderr, "usage: %s [-Rdfnqrtv] [-c count] [-i wait] [-l preload]\n",
+	  prognm);
+  fprintf(stderr, "            [-p pattern] [-s packetsize] host\n\n");
+  fprintf(stderr, "       Options:\n");
+  fprintf(stderr, "       R: ICMP record route\n");
+  fprintf(stderr, "       d: set SO_DEBUG socket option\n");
+  fprintf(stderr, "       f: 'flood' mode\n");
+  fprintf(stderr, "       n: force addresses to be displayed in numeric format\n");
+  fprintf(stderr, "       r: set SO_DONTROUTE socket option\n");
   fprintf(stderr, "       t: show results in tabular form\n");
   fprintf(stderr, "       v: verbose mode for ICMP stuff\n");
   exit(1);
