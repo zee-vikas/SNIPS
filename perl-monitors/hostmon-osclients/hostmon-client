@@ -79,7 +79,9 @@ use vars qw ( $SNIPS_LOGHOST $SENDMAIL $HOSTMON_SERVICE $HOSTMON_PORT $PSCMD
 	      $childpid $osfile @monitorlist @permithosts
 	    );
 
--f "snipsperl.conf" && require "snipsperl.conf";
+use POSIX ":sys_wait_h";      # signal and waitpid routines
+
+-f "snipsperl.conf" && require "snipsperl.conf";	# file is not essential
 
 ############################
 ## Variables customization #
@@ -96,8 +98,8 @@ $debug = 0;                             # set to 1 for debugging output
 $sleeptime = 5*60 ;
 @monitorlist = qw(uptime pstat nfsstat df iostat vmstat netstat mailstat);
 
-$SENDMAIL = "/usr/bin/sendmail" ;# SET_THIS to location of your 'sendmail'
-#$SENDMAIL = "/usr/local/bin/qmail-qread";	# SET_THIS if using qmail
+$SENDMAIL = "sendmail" ;	# SET_THIS to location of your 'sendmail'
+#$SENDMAIL = "qmail-qread";	# SET_THIS if using qmail
 
 $HOSTMON_SERVICE = "hostmon" unless $HOSTMON_SERVICE ;
 $HOSTMON_PORT = 5355 unless $HOSTMON_PORT ;
@@ -118,6 +120,8 @@ chomp $datafile;
 $datafile .= ".hostmon" ;
 $tmpfile = "$datafile" . ".tmp" ;	# temporary output file
 
+select (STDERR); $| = 1; select(STDOUT);	# make unbuffered
+
 #######################################################################
 #
 ## Following couple of subroutines are the 'daemon' part of the client.
@@ -131,7 +135,7 @@ sub serve_telnet {
   my @permitaddrs = ();
 
   $datafile = '/etc/motd'  unless $datafile;
-  $debug && print STDERR "(debug) datafile= $datafile\n";
+  $debug && print STDERR "[telnet_daemon] (debug) datafile= $datafile\n";
 
   ## Convert IP address of permitted hosts.
   foreach my $host (@permithosts)
@@ -139,12 +143,12 @@ sub serve_telnet {
     if ($host =~ /[\d\.]+/) {	# IP address, not name
       my $paddr = inet_aton($host);
       if ($paddr) { push (@permitaddrs, $paddr); }
-      else { print STDERR "Invalid hostname/IP address $host\n"; }
+      else { print STDERR "[telnet_daemon] Invalid hostname/IP address $host\n"; }
     }
     else {
       my ($name, $alias, $addr, $len, @paddrs) = gethostbyname($host);
       if ($#paddrs < 0) {
-	print STDERR "Cannot resolve $host, ignoring\n";
+	print STDERR "[telnet_daemon] Cannot resolve $host, ignoring\n";
       }
       else { push (@permitaddrs, @paddrs); }
     }
@@ -154,7 +158,7 @@ sub serve_telnet {
   if ($debug) {
     foreach my $paddr (@permitaddrs) {
       my $dottedquad = inet_ntoa($paddr);
-      print STDERR "(dbg) telnet_daemon() permitting ($dottedquad)\n";
+      print STDERR "[telnet_daemon] permitting ($dottedquad)\n";
     }
   }
 
@@ -170,7 +174,7 @@ sub serve_telnet {
   ## Get port number
   my $port = getservbyname($HOSTMON_SERVICE, 'tcp');
   $port = $HOSTMON_PORT  if ((! $port) || $port !~ /^\d+$/);
-  $debug && print STDERR "(dbg) telnet_daemon Port= $port\n" ;
+  $debug && print STDERR "[telnet_daemon] Port= $port\n" ;
 
   my $myaddr = sockaddr_in($port, INADDR_ANY);
     
@@ -186,7 +190,7 @@ sub serve_telnet {
     my $permitted = 0;
 
     ($debug > 1) && 
-      print STDERR "(telnet_daemon) Listening for connection\n";
+      print STDERR "[telnet_daemon] Listening for connection\n";
     
     ($remote = accept(CLIENT, SERVER)) || die $!; # waits here for connection
     
@@ -202,15 +206,15 @@ sub serve_telnet {
     my $remoteip = inet_ntoa($remoteaddr);	# dotted quad notation
     
     if (! $permitted)  {
-      print STDERR "(telnet_daemon) rejecting connection from $remoteip\n";
+      print STDERR "[telnet_daemon] rejecting connection from $remoteip\n";
       print CLIENT "Connection denied\n" if ($debug);
       close (CLIENT);
       next ;
     }
     $debug &&
-      print STDERR "(telnet_daemon) allowing connection from $remoteip\n";
+      print STDERR "[telnet_daemon] allowing connection from $remoteip\n";
     
-    # while (<CLIENT>) { print STDERR "(client) $_"; } # to read from remote
+    # while (<CLIENT>) { print STDERR " (client) $_"; } # to read from remote
     
     if (open (IFILE, $datafile)) {
       while (<IFILE>) {
@@ -317,7 +321,6 @@ sub standalone {
 #  of external programs called (such as `df`) also exiting and sending
 #  a SIGCHLD.
 sub reaper {
-  use POSIX ":sys_wait_h";
   my $child;
 
   while ( ($child = waitpid(-1, &WNOHANG)) > 0 ) {
@@ -332,7 +335,6 @@ sub reaper {
 ##
 sub clean_out_onexit {
   my ($err) = @_;
-  use POSIX ":sys_wait_h";
 
   $SIG{CHLD} = 'IGNORE';	# avoid looping between reaper and this func
   if ($childpid) {		# kill the telnet_daemon
@@ -445,19 +447,20 @@ while (1)
 {
   no strict 'refs';	 # allow using $function()
   my $stime = time;
-  
+
   open (DFILE, "> $tmpfile") || clean_out_onexit("Cannot open $tmpfile, $!");
   select(DFILE);		# select default output file
-  
+
   print "TIME $stime secs\n";	# needed in the output
+  local $SIG{CHLD} = 'DEFAULT';	# for external programs called
   foreach my $s (@monitorlist) {
-    #local $SIG{CHLD} = 'IGNORE';	# for external programs called
     &$s() ;	# call the subroutines.
   }
+  $SIG{CHLD} = \&reaper;	# reinstate handler
   close (DFILE) ;
   unlink $datafile;
   rename ($tmpfile, $datafile);
-  
+
   my $deltatime = time - $stime;	# time to do tests
   $debug  && print STDERR "(dbg) sleep for= $sleeptime - $deltatime\n";
 
