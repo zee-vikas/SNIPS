@@ -4,8 +4,6 @@ package SNIPS;
 
 use strict;
 use vars qw($VERSION @ISA @EXPORT @EXPORT_OK);
-use vars qw($opt_a $opt_d $opt_f $opt_o $opt_x);
-use Getopt::Std;
 
 require Exporter;
 require DynaLoader;
@@ -18,31 +16,30 @@ require DynaLoader;
 @EXPORT = qw(
 	     &snips_main  &snips_startup  &snips_reload
 	     &read_event &write_event &new_event
-	     &pack_event &unpack_event &print_event
+	     &pack_event &unpack_event &print_event &event2array
 	     &update_event &alter_event &rewrite_event
 	     &str2severity &open_datafile &close_datafile
-	     $libdebug
-	     $s_configfile $s_datafile $s_sender
+	     &calc_status $libdebug
+	     $s_configfile $s_datafile $s_sender $s_pollinterval
 	     $E_CRITICAL $E_ERROR $E_WARNING $E_INFO
-	     $n_UP $n_DOWN $n_UNKNOWN $n_TEST $n_NODISPLAY
+	     $n_UP $n_DOWN $n_UNKNOWN $n_TEST $n_NODISPLAY $n_OLDDATA
 	    );
 
 @EXPORT_OK = qw(
 		$autoreload $doreload $dorrd 
-		$prognm $pollinterval
+		$prognm
 	       );
 
 use vars qw (
 	     $autoreload $libdebug $doreload $dorrd 
 	     $prognm $pollinterval
-	     $s_configfile $s_datafile $s_sender $extension
+	     $s_configfile $s_datafile $s_sender $s_pollinterval $extension
 	     $E_CRITICAL $E_ERROR $E_WARNING $E_INFO
-	     $n_UP $n_DOWN $n_UNKNOWN $n_TEST $n_NODISPLAY
+	     $n_UP $n_DOWN $n_UNKNOWN $n_TEST $n_NODISPLAY $n_OLDDATA
 	     $HOSTMON_SERVICE $HOSTMON_PORT
-	     $dummy
 	    );
 
-$VERSION = '0.01';
+$VERSION = '1.00';
 
 bootstrap SNIPS $VERSION;
 
@@ -51,14 +48,13 @@ tie $libdebug, 'SNIPS::globals', 'debug';
 tie $dorrd, 'SNIPS::globals', 'dorrd';
 tie $doreload, 'SNIPS::globals', 'doreload';
 tie $autoreload, 'SNIPS::globals', 'autoreload';
-tie $dummy, 'SNIPS::globals', 'dummy';	# FIX, update use vars also
 tie $s_configfile, 'SNIPS::globals', 'configfile';
 tie $s_datafile, 'SNIPS::globals', 'datafile';
 
 ###
 ### Set variables, etc.
 ###
-$pollinterval = 300 ;	# set to a default value in seconds
+$s_pollinterval = 300 unless $s_pollinterval ;	# default value in seconds
 
 $E_CRITICAL = 1;
 $E_ERROR    = 2;
@@ -70,6 +66,7 @@ $n_DOWN        = 0x02;
 $n_UNKNOWN     = 0x04;
 $n_TEST        = 0x08;
 $n_NODISPLAY   = 0x10;
+$n_OLDDATA     = 0x20;
 
 ##  ### ### ### ##
 
@@ -110,7 +107,7 @@ sub main {
     exit 1;
   }
 
-  $test_func = \&do_test  if ( ! defined($test_func) );	# FIX FIX
+  # $test_func = \&do_test  if ( ! defined($test_func) );
 
   if ( ! defined($poll_func) && !defined($test_func) ) {
     print STDERR ("FATAL: need either poll_function or test_function ",
@@ -132,7 +129,7 @@ sub main {
       done() if ( &$poll_func() < 0 ) ;
     }
     else {
-      done () if ( SNIPS::poll_sites($test_func) < 0 );
+      done () if ( SNIPS::poll_devices($test_func) < 0 );
     }
 
     check_configfile_age()  if ($autoreload);
@@ -145,8 +142,8 @@ sub main {
     my $polltime = time - $starttm;
     print STDERR "$prognm: polltime = $polltime secs\n"  if ($libdebug);
 
-    if ($polltime < $pollinterval) {
-      my $sleeptime = $pollinterval - $polltime;
+    if ($polltime < $s_pollinterval) {
+      my $sleeptime = $s_pollinterval - $polltime;
       print STDERR "$prognm: Sleeping for $sleeptime secs\n"  if $libdebug;
       $SIG{ALRM} = 'DEFAULT';	# restore in case blocked
       sleep($sleeptime);
@@ -158,14 +155,16 @@ sub main {
 ## Set global variables after parsing command line options.
 #
 sub parse_opts {
+  use Getopt::Std;
+  use vars qw($opt_a $opt_d $opt_f $opt_o $opt_x $opt_v);
 
-  getopts("adf:o:x:");	# sets $opt_x
+  getopts("adf:o:vx:");	# sets $opt_x
   if ($opt_a) { ++$autoreload ; } # will reload if configfile modified
   if ($opt_d) { ++$libdebug ; }
   if ($opt_f) { $s_configfile = $opt_f; }
   if ($opt_o) { $s_datafile = $opt_o ; }
   if ($opt_x) { $extension = $opt_x ; }
-
+  if ($opt_v) { $libdebug = 2 ; }	# verbose mode
 }
 
 ## Sets up signal handlers, kills other running process, sets 
@@ -233,6 +232,13 @@ sub get_eventfields {
   return @$fields;
 }
 
+## De-reference list pointer
+sub event2array {
+  my ($event) = @_;
+  my $arr = SNIPS::_event2array($event);
+  return @$arr;
+}
+
 ## Send XS routine a hash reference.
 sub pack_event {
   my (%hevent) = @_;
@@ -264,24 +270,24 @@ sub print_event {
 ## generic poll function. Need a reference to the test function in the
 #  arg.
 #
-sub poll_sites {
+sub poll_devices {
   my ($test_func) = @_;
-  my $siteno = 0;
+  my $deviceno = 0;
   my $event = undef;
   my ($status, $value, $thres, $maxsev);
 
-  print STDERR "inside generic poll_sites\n" if ($libdebug > 2);
+  print STDERR "inside generic poll_devices\n" if ($libdebug > 2);
 
   my $fd = open_datafile($s_datafile, "r+");	# open for read + write
 
   while ( ($event = read_event($fd) ) ) 
   {
-    ++$siteno;		# start with 1, not 0
+    ++$deviceno;		# start with 1, not 0
 
     # call test function
     # only $value is really needed, rest can be undef.
     # If $thres is undef, update_event() will keep old threshold
-    ($status, $value, $thres, $maxsev) = &$test_func(\$event, $siteno);
+    ($status, $value, $thres, $maxsev) = &$test_func(\$event, $deviceno);
 
     $maxsev = $E_CRITICAL  if (! defined($maxsev));
     if ( ! defined ($status) )
@@ -298,10 +304,10 @@ sub poll_sites {
 
   }	# while (readevent)
 
-  print STDERR "poll_sites(): Processed $siteno sites\n" if ($libdebug > 1);
+  print STDERR "poll_devices(): Processed $deviceno devices\n" if ($libdebug > 1);
   close_datafile($fd);
   return 1;
-}	# sub poll_sites()
+}	# sub poll_devices()
 
 #### To access the C variables  #####
 #
@@ -373,14 +379,15 @@ Note the '\' before the '&' to pass function references to main().
 The readconfig() function should ideally write out an event for each device
 to be monitored to the output file.
 If dopoll() is defined, then this function must do one complete pass of
-monitoring all the sites. main() will call dopoll() in an endless loop and
+monitoring all the devices. main() will call dopoll() in an endless loop and
 check for any HUP signal between polls to see if the readconfig() function
 should be called to reload the new config file.
 
 If dopoll() is NOT defined, but dotest() is defined instead, then a generic
 dopoll() function invokes the dotest() function
-with the EVENT and the event-number (starting with 1) as input
-parameters. The function should return a list with the following fields:
+with the EVENT (read from the datafile) and the event-number 
+(starting with 1, not 0) as input parameters.
+The function should return a list with the following fields:
 
    ($status, $value, $thres, $max_severity) = &dotest(EVENT *ev, count)
 
@@ -397,7 +404,7 @@ are listed for the functions):
 	    new_event()
 	    foreach device in configfile
 	    {
-	    	alter_event()  # change sitename, addr, varname
+	    	alter_event()  # change devicename, addr, varname
 	    	write_event()  # to data file
 	    }
 	    close_datafile()
@@ -445,12 +452,23 @@ filenames. This allows running multiple copies of the program with each
 reading different config files. The other alternative is to create a
 symbolic link to the program with a different name and invoking that.
 
-=item startup()
+=item startup(I<char *progname [,char *extension]>)
 
 This function extracts the program name from the command line and sets up
 the various signal handlers. It sets the default config and data file names
 (based on the program name). It kills any previously running process and
 writes the PID in the pidfile. Every monitor MUST call this routine.
+
+The program name (typically $0 in perl) is provided as an argument. The
+optional 'extension' can be used to append a string to the program name
+(useful for running multiple copies of the program).
+
+=item standalone(char *progname [,char *extension])
+
+This utility function has the same arguments as I<startup()> but it only
+ensures that there is no other program running with the same name. If it
+finds a pid in the pidfile, it will attempt to kill that function, then
+writes the pid of the current process in the pidfile.
 
 =item reload(\E<38>readconfig)
 
@@ -473,7 +491,7 @@ This returns a packed binary event structure with its fields initialized
 This zeroes out the binary event structure and fills it in with the
 current date and time.
 
-=item alter_event(EVENT *ev, sender, sitename, siteaddr, varname, varunits)
+=item alter_event(EVENT *ev, sender, devicename, deviceaddr, varname, varunits)
 
 This is a utility routine which allows you to set the fields in the EVENT
 structure without having to unpack() and then pack(). ALL the fields are
@@ -534,15 +552,23 @@ event structure needed by write_event().
 =item HASH * unpack_event(EVENT *v)
 
 This converts a packed event structure into a hash, with the elements of
-the hash accessed using the field names such as 'sender', 'site.name',
-'site.addr', etc. This gives access to the various fields of the event
+the hash accessed using the field names such as 'sender', 'device_name',
+'device_addr', etc. This gives access to the various fields of the event
 structure.
 
 	%event = unpack_event($event);
 	$event{sender} = "pingmon";
-	$event{site.name} = "gw.navya.com";
+	$event{device_name} = "gw.navya.com";
 	$event = pack_event(%event);
 
+The list of field names can be extracted using I<get_eventfields()>. These
+names are:
+	sender
+	device_name device_addr
+	var_name var_value var_units
+	mon day hour min
+	severity loglevel
+        state rating op id
 
 =item str2severity(char *severity)
 
@@ -554,6 +580,20 @@ integer indicating the severity.
 This utility function returns a list of the field names of the 
 EVENT structure
 (which are used in the hash returned by 'unpack_event()').
+
+=item ARRAY event2array(EVENT *v)
+
+This converts an event into an array (the field names and their order can be
+obtained from get_eventfields(). This is an alternative to using unpack_event()
+if you want to extract the various fields in an event structure as an array.
+
+Typical usage would be:
+
+	@fields = get_eventfields();
+	@event = event2array($event);
+	my $i = 0;
+	foreach my $f (@fields) { $$f = $i; ++$i; }
+	print "$event[$sender] $event[$var_name\n";
 
 =back
 
@@ -568,21 +608,25 @@ automatically created by the startup() function (unless provided on
 the command line). You must call the functions set_configfile() and
 set_datafile() to change the names in the C library.
 
+=item $s_pollinterval
+
+C<$pollinterval> should be set only if you are calling the snips_main()
+function to set the sleep interval between polls.
+
 =item $E_INFO $E_WARN $E_ERROR $E_CRITICAL
 
-These are constants for the various severity levels and correspond to 4-1.
+These are constants for the various severity levels and correspond to integer
+values 4 thru 1.
 
-=item $libdebug $dorrd $autoreload $doreload $pollinterval
+=item $libdebug $dorrd $autoreload $doreload
 
-These are not exported, so in order to access these variables you
+These are NOT exported, so in order to access these variables you
 have to specify the package name (e.g. C<$SNIPS::libdebug>).
 C<$libdebug> will enable debugging (higher than one is more verbose),
 C<$dorrd> will enable generation of RRDtool graph data,
 C<$autoreload> is set when the user specifies C<-a> on the command line
 and the function 'check_configfile_age()' should be called if this is set
 (which actually sets the C<$doreload> flag).
-C<$pollinterval> should be set only if you are calling the snips_main()
-function to set the sleep interval between polls.
 C<$doreload> is set when the function recieves a HUP signal and the
 main function should call 'reload()' when this is set.
 

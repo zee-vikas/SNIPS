@@ -6,6 +6,9 @@
  *	Vikas Aggarwal (vikas@navya_.com)  June 2000
  *
  * $Log$
+ * Revision 0.13  2000/10/06 03:37:23  vikas
+ * Working checkpoint version
+ *
  * Revision 0.12  2000/07/13 12:37:40  vikas
  * open_datafile() returns undef now on error.
  *
@@ -74,6 +77,33 @@ _startup(myname,...)
   OUTPUT:
 	RETVAL
 
+# Uses program name to create a 'pidfile' in the etcdir. Kills earlier
+# process if it is running.
+int
+standalone(myname,...)
+	char *myname;
+  PREINIT:
+	char *s;
+  CODE:
+  {
+	prognm = (char *)Strdup(myname);	/* global var in snips.h */
+	if ( items > 1 ) {  /* 0 is myname, 1 is extnm */
+	  if (extnm) free(extnm);
+	  if ( SvOK(ST(1))) {
+		s = (char *)SvPV(ST(1), PL_na);
+		extnm = (char *)Strdup(s);
+	  }
+	  else
+		extnm = NULL;
+	}
+	RETVAL = standalone(get_pidfile());
+	if (RETVAL < 0)
+	   XSRETURN_UNDEF;
+	else
+	   RETVAL = 1;
+  }
+  OUTPUT:
+	RETVAL
 
 # Cleans up pid file and exits
 void
@@ -222,11 +252,11 @@ init_event(pv)
 # Allow direct updating of various event fields. Else perl will have
 # to unpack and then repack.
 void
-alter_event(pv, sender, sitename, siteaddr, varname, varunits)
+alter_event(pv, sender, devicename, deviceaddr, varname, varunits)
 	EVENT *pv;
 	SV  *sender;
-	SV  *sitename;
-	SV  *siteaddr;
+	SV  *devicename;
+	SV  *deviceaddr;
 	SV  *varname;
 	SV  *varunits;
   CODE:
@@ -234,10 +264,10 @@ alter_event(pv, sender, sitename, siteaddr, varname, varunits)
 	if (SvOK(sender))
 	  strncpy(pv->sender, SvPV(sender, PL_na), sizeof(pv->sender));
 
-	if (SvOK(sitename))
-	  strncpy(pv->site.name, SvPV(sitename, PL_na), sizeof(pv->site.name));
-	if (SvOK(siteaddr))
-	  strncpy(pv->site.addr, SvPV(siteaddr, PL_na), sizeof(pv->site.addr));
+	if (SvOK(devicename))
+	  strncpy(pv->device.name, SvPV(devicename, PL_na), sizeof(pv->device.name));
+	if (SvOK(deviceaddr))
+	  strncpy(pv->device.addr, SvPV(deviceaddr, PL_na), sizeof(pv->device.addr));
 
 	if (SvOK(varname))
 	  strncpy(pv->var.name, SvPV(varname, PL_na), sizeof(pv->var.name));
@@ -294,15 +324,21 @@ calc_status(val, warnt, errt, critt)
   }
 
 
-## Given a severity string, return an integer.
+## Given a severity string (CRITICAL or E_CRITICAL), return an integer.
 int
 str2severity(str)
 	char *str;
   PREINIT:
 	int sev;
+	char *s;
   CODE:
 	if (str)
-	  switch (*str)
+	{
+	  if (strncmp(str, "E_", 2) == 0)
+		s = str + 2;
+	  else	s = str;
+
+	  switch (*s)
 	  {
 		case 'C': case 'c':
 			RETVAL = E_CRITICAL;
@@ -320,6 +356,7 @@ str2severity(str)
 			RETVAL = E_CRITICAL;
 			break;
 	  }
+	}
 	else
 	  RETVAL = E_CRITICAL;
   OUTPUT:
@@ -406,10 +443,37 @@ _get_eventfields()
   OUTPUT:
 	RETVAL
 
+## Return the fields in the EVENT structure in the same order
+# as the event2strarray() C function returns.
+# This returns a reference to an array, so you have to dereference it
+# using @$xxx
+AV *
+_event2array(pv)
+	EVENT *pv;
+  PREINIT:
+	int i;
+	char **keyarray;
+	static AV *av;
+  CODE:
+  {
+	if (! av)
+	  av = newAV();
+	else
+	 av_clear(av);
+
+	keyarray = (char **)event2strarray(pv); /* */
+	for (i=0; keyarray[i] && *(keyarray[i]); ++i) /* */
+	  av_push(av, newSVpv(keyarray[i], 0)); /* */
+	RETVAL = av;
+  }
+  OUTPUT:
+	RETVAL
+
 # Convert a packed event into a hash. Return's a hash reference, so the
 # calling routine has to dereference it.
 #	$hashref = _unpack_event($event);
 #	%event = %$hashref;	# dereference
+# (This dereferencing is done by the perl SNIPS.pm module. Notice leading '_')
 #
 HV *
 _unpack_event(pv)
@@ -427,8 +491,8 @@ _unpack_event(pv)
 	else
 		hv_clear(hashevent);	/* free's old data */
 
-	if (!keyarray)
-		keyarray = (char **)event2strarray(NULL); /* once only */
+	if (!keyarray)	/* do once only */
+		keyarray = (char **)event2strarray(NULL); /* get keys */
 	strarray = (char **)event2strarray(pv);
 	for (i=0; keyarray[i] && *(keyarray[i]) ; ++i)
 	{
@@ -502,7 +566,7 @@ fopen_datafile(dfile, cflags)
 	else if (!strcmp(cflags, "w"))
 		flags = (O_WRONLY | O_TRUNC | O_CREAT);
 	else if (!strcmp(cflags, "r+"))
-		flags = O_RDWR;
+		flags = O_RDWR | O_CREAT;
 	else if (!strcmp(cflags, "w+"))
 		flags = (O_RDWR | O_TRUNC | O_CREAT);
 	else if (!strcmp(cflags, "a"))

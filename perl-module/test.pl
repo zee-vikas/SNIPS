@@ -32,9 +32,6 @@ print "dorrd is: ", $SNIPS::dorrd,
   ", configfile is: ", $SNIPS::s_configfile,
   ", datafile is: ", $SNIPS::s_datafile,
   "\n";
-sub doodoo {
-
-}
 
 $av = SNIPS::new_event();
 $bv = SNIPS::new_event();
@@ -73,6 +70,16 @@ while ( ($event = SNIPS::read_event($datafd) ) )
     print "$key = $event{$key} ; ";
   }
   print "\n";
+
+  print "Now extracting event using event2array()\n";
+  @event = SNIPS::event2array($event);
+  my $i = 0;
+  foreach my $f (@fields) { 
+    $$f = $i;
+    ++$i;
+    print "$f = $event[$$f] ; ";
+  }
+
   print "REPACKING EVENT\n";
   $tevent = SNIPS::pack_event(%event);
   # SNIPS::print_event($tevent);
@@ -128,7 +135,7 @@ sub readconf {
 }
 
 sub do_test {
-  my ($event, $siteno) = @_;
+  my ($event, $deviceno) = @_;
 
   print "This is function dotest\n";
   my ($status, $thres, $maxsev) = SNIPS::calc_status(2, 1, 3, 5);
