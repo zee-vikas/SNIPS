@@ -6,63 +6,47 @@
  *	Vikas Aggarwal (vikas@navya_.com)  June 2000
  *
  */
-#ifdef __cpluscplus
+#ifdef __cplusplus
 extern "C" {
 #endif
-
 #include "EXTERN.h"
 #include "perl.h"
 #include "XSUB.h"
-
-#ifdef __cpluscplus
+#ifdef __cplusplus
 }
 #endif
 
 #define _MAIN_
 #include "snips.h"
 #undef _MAIN_
+
 #ifndef PL_na
 # define PL_na na
 #endif
-
 
 MODULE = SNIPS		PACKAGE = SNIPS		PREFIX = snips_
 
 PROTOTYPES: ENABLE
 
 
-## Call generic snips_main()  C routine
-int
-_main(...)
-  PREINIT:
-	int  i;
-	char **argv;
-  CODE:
-  {
-	argv = (char **)malloc((items) * sizeof(char *));
-	for (i = 0; i < items; ++i)
-	{
-		char *handle = argv[i] = (char *)SvPV(ST(i), PL_na);
-		argv[i] = (char *)Strdup(handle);
-	}
-	optind = 0 ; opterr = 0;
-	RETVAL = snips_main(items, argv);
-	/*** should never return ***/
-
-	for (i = 0; i < items; ++i)		/* just in case... */
-		free(argv[i]);
-	free(argv);
-  }
-  OUTPUT:
-	RETVAL
-
-
 # Call the snips_startup function which sets up signal handlers.
 # NOTE NOTE: Different arguments as compared to the C routine.
 int
-_startup()
+_startup(myname,...)
+	char *myname;
+  PREINIT:
+	int i;
+	char *s;
   CODE:
   {
+	prognm = (char *)Strdup(myname);	/* global var in snips.h */
+	if (items > 1) {  /* 0 is myname, 1 is extnm */
+	  s = (char *)SvPV(ST(1), PL_na);
+	  if (extnm)  free(extnm);
+	  extnm = (char *)Strdup(s);
+	}
+	printf ("BTW, prognm= %s, extnm= %s, do_reload= %d\n",
+			prognm, extnm, do_reload);
 	RETVAL = snips_startup();
   }
   OUTPUT:
@@ -79,88 +63,53 @@ snips_done()
 
   }
 
-# Following two routines are tricky. The perl routine will call
-# set_readconfig_function(), which sets the parameter in the C
-# library to be call_readconfig().  call_readconfig() then tries
-# to invoke the PERL read_conf subroutine.
-#
-#   DOES NOT WORK      DOES NOT WORK
-int
-call_readconfig(datafd, cfile)
-	int datafd;
-	char *cfile;
-  PREINIT:
-	FILE *fh;
-  CODE:
-  {
-	int count;	/* number of values returned by perl function */
-
-	fh = fdopen(datafd, "r+");	/* for perl */
-
-	/* dSP ;	/* automatically declared in XSUB */
-
-	ENTER ;
-	SAVETMPS ;
-
-	PUSHMARK(SP) ;
-	/* XPUSHs(sv_2mortal(newSViv(datafd)));	/* file desc */
-	XPUSHs(sv_2mortal(newSVpv((char *)fh, sizeof(*fh))));
-	XPUSHs(sv_2mortal(newSVpv(cfile, 0)));
-	PUTBACK ;
-
-	count = perl_call_pv("read_conf", G_SCALAR);	/* or G_ARRAY */
-	SPAGAIN;	/* refresh stack */
-
-	if (count == 1)
-		RETVAL = POPi;	/* pop the return integer value */
-
-	PUTBACK;
-	FREETMPS ;
-	LEAVE ;
-  }
-
-
-#   DOES NOT WORK      DOES NOT WORK  (see above)
 void
-set_readconfig_function()
-
+open_eventlog()
   CODE:
   {
-	int call_readconfig();		/* */
-	set_readconfig_function(call_readconfig);
+	openeventlog();
   }
 
-# Given old file handle, return new filehandle. Check for the value of
-# the global variable  snips::do_reload to decide if should call
-# snips_reload()
-#
-FILE *
-snips_reload(oldfh)
-	FILE *oldfh;
+##
+int
+eventlog(pv)
+	EVENT *pv;
   CODE:
   {
-	int newfd ;
-	FILE *newfh;
-	newfd = snips_reload(fileno(oldfh), NULL);
-	if (newfd >= 0)
-	{
-	  newfh = fdopen(newfd, "r+");
-	  /* sv_setsv(ST(0), (SV *)newfh); /* does not work */
-	  RETVAL = newfh;
-	}
-	else
-	  XSRETURN_UNDEF;
+	RETVAL = eventlog(pv);
   }
   OUTPUT:
 	RETVAL
 
+##
 int
-copy_datafile_events(ofh, nfh)
-	FILE *ofh;
-	FILE *nfh;
+check_configfile_age()
   CODE:
   {
-	RETVAL = copy_datafile_events(fileno(ofh), fileno(nfh));
+	RETVAL = check_configfile_age();
+  }
+  OUTPUT:
+	RETVAL
+
+		
+# Copies all 'common' events data from old file to new file. Called
+# by the reload function.
+int
+copy_events_datafile(ofile, nfile)
+	char *ofile;
+	char *nfile;
+  PREINIT:
+	int ofd, nfd;
+  CODE:
+  {
+	ofd = open_datafile(ofile, O_RDONLY);
+	nfd = open_datafile(nfile, O_RDWR|O_CREAT|O_TRUNC);
+	if (ofd < 0 || nfd < 0) {
+		croak("FATAL copy_events_datafile()- cannot open() %s\n",
+			sys_errlist[errno]);
+	}
+	RETVAL = copy_events_datafile(ofd, nfd);
+	close_datafile(ofd);  close_datafile(nfd);
   }
   OUTPUT:
 	RETVAL
@@ -186,8 +135,44 @@ snips_get_configfile()
   OUTPUT:
 	RETVAL
 
+## FIX FIX FIX. how to access these global variables from snips.h
+int
+snips_get_reload_flag()
 
-# Read and write dataversion.
+  CODE:
+  {
+	RETVAL = do_reload;
+  }
+  OUTPUT:
+	RETVAL
+
+## FIX FIX FIX. how to access these global variables from snips.h
+void
+snips_set_reload_flag(i)
+	int i;
+  CODE:
+  {
+	do_reload = i;
+  }
+
+## Override the default config and datafile names
+void
+snips_set_configfile(f)
+	char *f;
+  CODE:
+  {
+	(void *)set_configfile(f);
+  }
+
+void
+snips_set_datafile(f)
+	char *f;
+  CODE:
+  {
+	(void *)set_datafile(f);
+  }
+
+## Read and write dataversion.
 int
 read_dataversion(fh)
 	FILE *fh;
@@ -242,6 +227,29 @@ init_event(pv)
 
 
 ##
+# Allow direct updating of various event fields. Else perl will have
+# to unpack and then repack.
+void
+alter_event(pv, sender, sitename, siteaddr, varname, varunits)
+	EVENT *pv;
+	char  *sender;
+	char  *sitename;
+	char  *siteaddr;
+	char  *varname;
+	char  *varunits;
+  CODE:
+  {
+	if (sender) strncpy(pv->sender, sender, sizeof(pv->sender));
+
+	if (sitename) strncpy(pv->site.name, sitename, sizeof(pv->site.name));
+	if (siteaddr) strncpy(pv->site.addr, siteaddr, sizeof(pv->site.addr));
+
+	if (varname) strncpy(pv->var.name, varname, sizeof(pv->var.name));
+	if (varunits) strncpy(pv->var.units, varunits, sizeof(pv->var.units));
+  }
+
+
+## given a status, value and maxseverity, updates the structure
 int
 update_event(pv, status, value, maxsev)
 	EVENT *pv;
@@ -256,17 +264,6 @@ update_event(pv, status, value, maxsev)
   OUTPUT:
 	RETVAL
 
-
-##
-int
-eventlog(pv)
-	EVENT *pv;
-  CODE:
-  {
-	RETVAL = eventlog(pv);
-  }
-  OUTPUT:
-	RETVAL
 
 #
 #      calc_status()
