@@ -68,6 +68,8 @@ DFinodes_avail	*	7000 5000 1000
 # The IObw is probably available only on SunOS and Solaris
 IOseek		*	5  10  15
 IObw		*	20 30  40
+IObps		*	10 20 30
+IOtps		*	10 20 30
 
 # Dont want to see SwapIn SwapOut get to Critical level. Set unreasonable
 # third threshold.
@@ -78,7 +80,8 @@ SwapOut		*	5   10 20
 # Paging is normal
 PageIn		*	10  20 999
 PageOut		*	5   10 999
-
+PageRe		*	10  20 30
+#PageFlt	*	10  20  30	# ignore page faults
 MemFree		*	20  15  10
 
 CtxtSw		compu.*	500 700 999
