@@ -25,6 +25,9 @@
 
 /*
  * $Log$
+ * Revision 1.1  2001/08/05 14:08:49  vikas
+ * Now checks if the sitename or varname is blank.
+ *
  * Revision 1.0  2001/07/08 22:19:38  vikas
  * Lib routines for SNIPS
  *
@@ -74,6 +77,12 @@ snips_rrd(timestamp, devicename, deviceaddr, subdevice,
 
   /* dirname = tdeviceaddr;		/* dir name is device addr */
   dirname = tdevicename;
+  if (*dirname == '\0' || *tvarname == '\0') {
+    fprintf(stderr,
+	    "ERROR: snips_rrd() empty devicename '%s' or variable '%s'\n",
+	    dirname, tvarname);
+    return(-1);
+  }
 
   if (*tsubdev)
     sprintf(dbpath,"%s/%c/%s/%s+%s.rrd",
