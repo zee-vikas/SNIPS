@@ -518,7 +518,7 @@ static int ParseOID(FILE *fp, struct subid *SubOid, int length)
 
       /* this entry has a label */
       if (SubOid->Label) { free(SubOid->Label); }
-      SubOid->Label = strdup(token);
+      SubOid->Label = (char *)strdup(token);
 
       type = ReadNextToken(fp, token);
       if (type == tok_LeftParen) {
@@ -588,11 +588,11 @@ printf("ParseOID returned length %d\n", length);
       if (IDPtr->Label && 
 	  (NextIDPtr->Label || (NextIDPtr->SubID != -1))) {
 	if (np->Parent) { free(np->Parent); }
-	np->Parent = strdup(IDPtr->Label);
+	np->Parent = (char *)strdup(IDPtr->Label);
 	
 	if (NextIDPtr->Label) {
 	if (np->Label) { free(np->Label); }
-	  np->Label = strdup(NextIDPtr->Label);
+	  np->Label = (char *)strdup(NextIDPtr->Label);
 	}
 
 	if (NextIDPtr->SubID != -1)
@@ -623,9 +623,9 @@ printf("ParseOID returned length %d\n", length);
       printf("IDLabel is %s\n", IDPtr->Label);
 #endif
 	if (np->Parent) { free(np->Parent); }
-	np->Parent = strdup(IDPtr->Label);
+	np->Parent = (char *)strdup(IDPtr->Label);
 	if (np->Label) { free(np->Label); }
-	np->Label = strdup(name);
+	np->Label = (char *)strdup(name);
 
 	if (NextIDPtr->SubID != -1)
 	  np->SubID = NextIDPtr->SubID;
@@ -866,7 +866,7 @@ static struct node *ParseObjectType(FILE *fp, char *name)
 
 	  /* Copy the label */
 	  if (ep->label) { free(ep->label); }
-	  ep->label = strdup(token);
+	  ep->label = (char *)strdup(token);
 
 	  /* Now read the numeric value */
 	  type = ReadNextToken(fp, token);
@@ -960,10 +960,10 @@ static struct node *ParseObjectType(FILE *fp, char *name)
     /* just take the last pair in the oid list */
     if (SubOid[length - 2].Label) {
       if (np->Parent) { free(np->Parent); }
-      np->Parent = strdup(SubOid[length - 2].Label);
+      np->Parent = (char *)strdup(SubOid[length - 2].Label);
     }
     if (np->Label) { free(np->Label); }
-    np->Label = strdup(name);
+    np->Label = (char *)strdup(name);
 
     if (SubOid[length - 1].SubID != -1)
       np->SubID = SubOid[length - 1].SubID;
