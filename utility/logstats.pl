@@ -159,10 +159,10 @@ if ($var_regex) {print "Filter on variable name: $var_regex\n"; }
 if ($mindowntime) {print "Skipping downtimes less than $mindowntime secs\n"; }
 
 ## Per device report
-print "\nPer Device Reports\n================\n\n";
-print "    Device         Variable       +--------- Downtime ---------+   Total    Avg.\n",
+print "\nPer Device Reports\n==================\n\n";
+print "    Device       Variable       +--------- Downtime ---------+   Total    Avg.\n",
       "                                Total     Max      Avg.    %age  Downs   Value\n",
-      "------------------------------------------------------------------------------";
+      "-"x78, "\n";
 for my  $s (sort(keys %DOWN))
 {
   next if (defined $mindowntime && $TOTALDOWN{$s} <= $mindowntime);
@@ -172,7 +172,7 @@ for my  $s (sort(keys %DOWN))
   if ($FLAPS{$s} == 0) { $FLAPS{$s} = 1; }	# avoid divide by zero
   my ($avg, $percent) = (&secs2hrs($TOTALDOWN{$s}/$FLAPS{$s}),
 			 ($TOTALDOWN{$s}*100)/$tot_delta );
-  printf "%-14s  %-11s  %6s  %6s  %6s  %3s  %5s  %5s\n",
+  printf "%-14s  %-11s  %6s  %6s  %6s  %.3s  %5s  %5s\n",
            $device, $var, &secs2hrs($TOTALDOWN{$s}),
            &secs2hrs($MAXDOWN{$s}),
            $avg, $percent, $FLAPS{$s}, int($TOTVARVALUE{$s}/$FLAPS{$s}) ;
@@ -193,7 +193,7 @@ foreach my $s (sort {$TOTVARDOWN{$b} <=> $TOTVARDOWN{$a}} (keys %TOTVARDOWN))
 }
 
 ## 10 Worst devices
-print "\n10 Worst Device Events\n====================\n\n";
+print "\n10 Worst Device Events\n======================\n\n";
 printf "%15s  %10s %s\n",  "Device     ", "Variable  ", "TotalDown";
 print "    ------------------------------------\n";
 $ncount= 0;
