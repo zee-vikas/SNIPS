@@ -7,7 +7,7 @@ use Getopt::Std;
 
 require Exporter;
 require DynaLoader;
-require AutoLoader;
+#require AutoLoader;	# requires one package statement per file
 
 @ISA = qw(Exporter DynaLoader);
 # Items to export into callers namespace by default. Note: do not export
@@ -26,11 +26,13 @@ require AutoLoader;
 	       );
 
 use vars qw (
-	     $autoreload $debug $prognm $pollinterval $libdebug
+	     $autoreload $debug $do_reload $dorrd 
+	     $prognm $pollinterval $libdebug
 	     $s_configfile $s_datafile $s_sender $extension
 	     $HOSTMON_SERVICE $HOSTMON_PORT $bindir $ping $rpcping
 	     $E_CRITICAL $E_ERROR $E_WARNING $E_INFO
 	     $n_UP $n_DOWN $n_UNKNOWN $n_TEST $n_NODISPLAY
+	     $dummy
 	    );
 
 $VERSION = '0.01';
@@ -38,6 +40,12 @@ $VERSION = '0.01';
 bootstrap SNIPS $VERSION;
 
 # Preloaded methods go here.
+tie $debug, 'SNIPS::globals', 'debug';
+tie $dorrd, 'SNIPS::globals', 'dorrd';
+tie $do_reload, 'SNIPS::globals', 'do_reload';
+tie $autoreload, 'SNIPS::globals', 'autoreload';
+tie $s_configfile, 'SNIPS::globals', 'configfile';
+tie $s_datafile, 'SNIPS::globals', 'datafile';
 
 ## Some cruft from the old snipslib.pl file, FIX FIX FIX
 
@@ -104,7 +112,6 @@ sub main {
   while (1)
   {
     my $starttm = time;
-    $debug = get_debug_flag();	# update from xsub (USR1 signal increases it)
 
     if (defined ($poll_func)) {
       done() if ( &$poll_func() < 0 ) ;
@@ -115,7 +122,7 @@ sub main {
 
     check_configfile_age()  if ($autoreload);
 
-    if ( get_reload_flag() ) {
+    if ( $do_reload ) {
       reload($readconf_func);
       next;	# dont sleep
     }
@@ -140,8 +147,8 @@ sub parse_opts {
   getopts("adf:o:x:");	# sets $opt_x
   if ($opt_a) { ++$autoreload ; } # will reload if configfile modified
   if ($opt_d) { ++$debug ; }
-  if ($opt_f) { set_configfile($opt_f) ; }
-  if ($opt_o) { set_datafile($opt_o) ; }
+  if ($opt_f) { $s_configfile = $opt_f; }
+  if ($opt_o) { $s_datafile = $opt_o ; }
   if ($opt_x) { $extension = $opt_x ; }
 
 }
@@ -156,12 +163,6 @@ sub startup {
 
   my $rc = SNIPS::_startup($prognm, $extension);
 
-  set_debug_flag($debug) if ($debug);
-  set_autoreload_flag($autoreload) if ($autoreload);
-
-  $s_configfile = get_configfile() if (! $s_configfile);
-  $s_datafile = get_datafile() if (! $s_datafile);
-
   return $rc;
 }
 
@@ -173,7 +174,7 @@ sub reload {
   my $ndatafile = $s_datafile . ".hup";	# new datafile
 
   print STDERR "Reloading...";
-  set_reload_flag(0);		# reset at start
+  $do_reload = 0;		# reset at start
 
   if (! defined($readconfig_func)) {
     print STDERR "Cannot reload, no readconfig function set in program\n";
@@ -198,7 +199,7 @@ sub reload {
     print STDERR "done\n";
   }
 
-  set_reload_flag(0);		# reset
+  $do_reload = 0;		# reset
 }
 
 ## De-reference list pointer
@@ -269,7 +270,7 @@ sub poll_sites {
     
     update_event($event, $status, $value, $thres, $maxsev);
     rewrite_event($fd, $event);
-    last if (get_reload_flag());
+    last if ($do_reload > 0);
 
   }	# while (readevent)
 
@@ -277,6 +278,44 @@ sub poll_sites {
   close_datafile($fd);
   return 1;
 }	# sub poll_sites()
+
+#### To access the C variables  #####
+#
+# Cannot use Autoloader if putting another package in the
+# same .pm file. These functions call XSUB routines.
+package SNIPS::globals;
+use Carp;
+
+sub TIESCALAR {
+  my $class = shift;
+  my $var = shift;	# debug or dorrd or...
+  # print "TIESCALAR, blessing $var in class $class\n";
+  return bless \$var, $class;
+}
+
+sub FETCH {
+  my $self = shift;
+  confess "wrong type" unless ref $self;
+  croak "usage error" if @_;
+  my $value;
+  local ($!) = 0;
+  $value = SNIPS::globals::_FETCH($self);
+  if ($!) { croak "get_function failed: $!"; }
+  return $value;
+}
+
+sub STORE {
+  my $self = shift;
+  confess "wrong type" unless ref $self;
+  my $newval = shift;
+  croak "usage error" if @_;
+
+  # print "Trying to STORE ", $$self, " with value $newval\n";
+  unless ( defined SNIPS::globals::_STORE($self, $newval) ) {
+    confess "Could not set ", $$self, ": $!";
+  }
+  return $newval;
+}
 
 # Autoload methods go after =cut, and are processed by the autosplit program.
 
@@ -367,7 +406,7 @@ pseudocode, no parameters are listed for the functions):
 				write_event()
 			}
 			close_datafile()
-			if (get_reload_flag())
+			if ($do_reload)
 			   reload()
 			sleep()
 		} # end while
