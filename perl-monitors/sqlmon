@@ -83,8 +83,9 @@ sub readconf {
       $varvalue[$count] = 1;	# unused
       $varthres[$count] = 0;	# unused
 
-      alter_event($event, undef, $devicename[$count], $deviceaddr[$count],
-		  undef, undef);
+      # $event sender devname devip subdev varname varunits
+      alter_event($event, 'sqlmon', $devicename[$count], $deviceaddr[$count],
+		  undef, 'SQLserver', 'Up');
       write_event($datafd, $event);
       next;
     }
