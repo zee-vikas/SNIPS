@@ -69,6 +69,11 @@ install:
 	     $(INSTALL) -c -m 755 $$f $(BINDIR)/hostmon-osclients/ ;\
 	   fi \
 	  done
+	-@cd $(BINDIR)/hostmon-osclients ; \
+	  if [ -f hostmon-client.seds ]; then \
+		$(INSTALL) -c -m 755 hostmon-client.seds  hostmon-client ;\
+		rm -f hostmon-client.seds ;\
+	  fi
 	-@echo "Installing perl monitors under $(BINDIR)" ;\
 	  for f in $(PROGS) ; do \
 	    $(INSTALL) -c -m 755 $$f.seds $(BINDIR)/$$f ;\
