@@ -1,0 +1,5 @@
+			DEVNOTES FOR etherload
+
+1. does not use generic snips_main()
+
+2. does not handle SIGHUP at this time.
