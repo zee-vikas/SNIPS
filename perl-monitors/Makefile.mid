@@ -1,9 +1,10 @@
 # $Id$
 #
 
-# Need the locations of ROOTDIR, PERL & PING
+# Need the locations of ROOTDIR PERL PING MAIL
 #PERL =	@PERL@
 PING = @PING@
+MAIL = @MAIL@
 
 # The following are only required for C programs (CMU applications)
 PROGCDEFS =
@@ -35,6 +36,9 @@ all:	snmpprogs
 		-e 's#^\(\ *$$snipsroot\ *=\ *\)q(\(.*\))\(.*SET_THIS.*\)#\1 q\($(ROOTDIR)\) \3#' \
 		-e 's#^\($$ping\ *=\ *\)\"\(.*\)\"\(.*SET_THIS.*\)#\1 "$(PING)" \3#' \
 		-e 's#^\($$ping\ *=\ *\)q(\(.*\))\(.*SET_THIS.*\)#\1 q\($(PING)\) \3#' \
+		-e 's#^\(\ *$$OPSMAIL\ *=\ *\)q(\(.*\))\(.*SET_THIS.*\)#\1 q\($(OPSMAIL)\) \3#' \
+		-e 's#^\(\ *$$ADMINMAIL\ *=\ *\)q(\(.*\))\(.*SET_THIS.*\)#\1 q\($(ADMINMAIL)\) \3#' \
+		-e 's#^\(\ *$$email_program\ *=\ *\)q(\(.*\))\(.*SET_THIS.*\)#\1 q\($(MAIL)\) \3#' \
 		$$f >$$f.seds ;\
 	 fi ;\
 	done ;\
