@@ -89,10 +89,10 @@ else {open (LOGFILE, "cat |"); }	# open stdin
 
 while (<LOGFILE>) {
   ++$linenum;
-  if ( /^(\w+\s+\w+\s+\d+\s+\d+:\d+:\d+\s+\d+)\s+\[([^]]+)\]:\s+SITE|DEVICE\s+(\S+)\s+(?:(\S+)\s+)?VAR\s+(\S+)\s+(\d+).*LEVEL\s+(\S+)\s+LOGLEVEL\s+(\S+)\s+NOCOP\s+(\S+)/ )
+  if ( /^(\w+\s+\w+\s+\d+\s+\d+:\d+:\d+\s+\d+)\s+\[([^]]+)\]:\s+(SITE|DEVICE)\s+(\S+)\s+(?:(\S+)\s+)?VAR\s+(\S+)\s+(\d+).*LEVEL\s+(\S+)\s+LOGLEVEL\s+(\S+)\s+STATE\s+(\S+)/ )
   {
     my ($e_date, $e_sender, $e_device, $e_addr, $e_varname, $e_varval, $e_level,
-	$e_loglevel, $e_nocop) = ($1, $2, $3, $4, $5, $6, $7, $8, $9);
+	$e_loglevel, $e_nocop) = ($1, $2, $4, $5, $6, $7, $8, $9, $10);
   
     # if any devices given, do only the listed devices.
     if ($device_regex) { next unless $e_device =~ /$device_regex/oi; }
