@@ -96,7 +96,7 @@ sub check_security {
   if (@OK_REFERER) {
     my $referer = (split('\?', $ENV{'HTTP_REFERER'}))[0];
     $referer = "NoHost" if (! $referer);
-    if (grep (/^${referer}$/, @OK_REFERER) == 0)
+    if (grep (/^${referer}$/i, @OK_REFERER) == 0)
     {
       print "Content-type: text/plain\n\n";
       print "ACCESS DENIED from $referer\n";
@@ -241,6 +241,19 @@ sub do_graph {
   my ($datafile, $tmscale) = @_;	# one of   d w m y
   my $imgmode = "PNG";
   my $imgfile = "-";		# default generate image to stdout
+  my %LABEL = (
+	       "Bandwidth",  "0-100 percentage",
+	       "PktsPerSec", "Pkts Per Sec",
+	       "named-status", "SOA Avail T/F",
+	       "ntp", "Stratum",
+	       "ICMP-RTT", "msec",
+	       "ICMP-ping", "Pkts Rcvd",
+	       "WWWport", "Port/page Available T/F",
+	       "WWWspeed", "download time in msec",
+	       "radius", "Port Available T/F",
+	       "Thruput", "Kbps",
+              );
+  my ($match, $label, $labelfound);
 
   if ($mode eq "gif") { $imgmode= "GIF"; }
 
@@ -267,7 +280,16 @@ sub do_graph {
     return;
   }
 
-  $comment = "(generated " . scalar(localtime) .")";
+  foreach $match (keys %LABEL) {
+    printf STDERR "examining match $match\n";
+    if ($imgfile =~ /$match/) {
+      $label = $LABEL{$match};
+      $debug && printf STDERR "found label in %s -> %s\n",$match, $label;
+      last;
+    }
+  }
+
+$comment = "(generated " . scalar(localtime) .")";
   ##
   ##
   if ($imgfile eq "-") {
@@ -280,6 +302,7 @@ sub do_graph {
     RRDs::graph ($imgfile, "-t", "$title  ($timelegend{$tmscale})",
 		 "--imgformat", "$imgmode", "--lazy", "--lower-limit", "0",
 		 "-s", "-$timestart{$tmscale}", "-e", "now", 
+		 "--vertical-label", "$label",
 		 "DEF:var1=$rrd_realdir/${datafile}:var1:AVERAGE", 
 		 "DEF:sev=$rrd_realdir/${datafile}:sev:AVERAGE",
 		 "CDEF:intsev=sev,UN,UNKN,sev,1.5,GT,sev,2.5,LE,2,sev,3.5,LE,3,4,IF,IF,1,IF,IF",
