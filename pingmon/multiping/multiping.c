@@ -4,12 +4,30 @@
  *
  * Pings multiple sites at once.
  *
- *  Copyright 1997	Netplex Technologies Inc., info@netplex-tech.com
+ *   -	if the list of hosts is too long, the command line can get
+ *	truncated. So can specify the host list on stdin using '-'
+ *   -	if you want the pkts to come from one of multiple IP addresses
+ *	on a host, you can define the IP address in the environment
+ *	variable SNIPS_LCLADDR
  *
- * MAINTAINED BY:
+ * This version of multiping maintained by:
+ *
  *	Vikas Aggarwal, vikas@navya_.com
  *
- * Derived from "@(#)ping.c	5.9 (Berkeley) 5/12/91";
+ * Derived from ping.c, original header attached below.
+ */
+
+/*
+ * $Log$
+ * Revision 2.1  2001/07/08 23:17:31  vikas
+ * Can specify the IP address of the source packets using SNIPS_LCLADDR
+ * (patch submitted by jgreco@ns.sol.net)
+ *
+ */
+
+/*
+ *
+ * "@(#)ping.c	5.9 (Berkeley) 5/12/91";
  *
  * Using the InterNet Control Message Protocol (ICMP) "ECHO" facility, measure
  * round-trip-delays and packet loss across network paths.
@@ -29,56 +47,8 @@
  * could always be gathered. This program has to run SUID to ROOT to access
  * the ICMP socket.
  *
- *
- * $Log$
- * Revision 2.0  2000/05/11 20:31:38  vikas
- * Determine the time to wait in the select call by using gettimeofday()
- * when the select call returns.
- *
- * Revision 1.15  2000/04/28 03:34:44  vikas
- * Stopped using signals to trigger next ping cycle. Now uses
- * select() instead which also allows controlling the interval
- * between ping cycles by subtracting the cycle time.
- *
- * Revision 1.14  2000/04/24 04:46:28  vikas
- * Now can specify the list of hosts on stdin (if the host list is
- * too long on the command line, Unix can truncate it to _SC_ARGS_MAX)
- *
- * Revision 1.13  2000/04/24 03:42:42  vikas
- * does not increase the 'interval' to 2 secs if large number of hosts.
- * Speeds up process, and increasing the interval to 2 secs did not
- * make sense anyway.
- *
- * Revision 1.12  1998/07/31 18:34:17  vikas
- * Avoid divide by zero
- *
- * Revision 1.11  1997/01/28 11:05:43  vikas
- * Now stores the index into the destrec[] array in the packet
- * that is sent (faster and can now handle duplicates).
- * Added 'defines' for Linux which doesn't have "standard" include
- * files. Hope it works under Alpha Linux also...
- *
- * Revision 1.10  1994/12/19 03:38:36  vikas
- * Fixed the inet_ntoa() call.
- *
- * Revision 1.8  1994/03/25  13:41:46  vikas
- * Added fprintf() so that in sendto errors, the sitename is printed out
- * to stderr instead of to stdout.
- *
- * Revision 1.7  1994/02/03  22:48:31 vikas 
- * Deleted 'values.h' include. Also forced a delay in mpinger() if
- * the first select() returned positive (since it was sending packets
- * out too fast).
- *
- * Revision 1.6  1994/02/02  01:21:04  vikas
- * Major change in logic-- now uses 'select' for interpacket delays
- * and uses the time paused for parsing any return packets.
- * Improved performance by a factor of 10:
- * 	v1.5 => 9 mins,  203.0u 7.2s 9:06.16 38.5% 0+243k 3+5io 3pf+0w
- * 	v1.6 => 1 mins,  1.5u 4.3s 1:15.64 7.7% 0+221k 2+4io 4pf+0w
- * (these times are for 150 sites on cmd line, 10 pkts, 100 byte pkts)
- *
  */
+/*  Copyright 1997-2000, Netplex Technologies Inc., info@netplex-tech.com */
 
 #ifndef lint
 static char rcsid[] = "$Id$";
@@ -114,9 +84,7 @@ static char rcsid[] = "$Id$";
 # include <netinet/ip_var.h>	/* define's MAX_IPOPTLEN */
 #endif	/* LINUX */
 
-#define MAIN
-#include "multiping.h"		/* all sorts of nasty #defines */
-#undef MAIN
+#include "multiping.h"
 
 static int	finish_up = 0;	/* flag to indicate end */
 
@@ -157,6 +125,7 @@ main(argc, argv)
   register int    i;
   int             ch, hold, preload, dostdin, almost_done = 0;
   u_char         *datap;
+  char		*lcladdr;
 #ifdef IP_OPTIONS
   char            rspace[3 + 4 * NROUTES + 1];	/* record route space */
 #endif
@@ -294,6 +263,25 @@ main(argc, argv)
     perror("ping: socket");
     exit(1);
   }
+
+  /*
+    * Sometimes, you really want the data to come from a specific IP addr
+    * on the machine, i.e. for firewalling purposes
+    */
+ 
+  if ( (lcladdr = getenv("SNIPS_LCLADDR")) ||
+       (lcladdr = getenv("NOCOL_LCLADDR")) )
+  {
+    struct sockaddr_in hostaddr;
+
+    bzero((char *)&hostaddr, sizeof(hostaddr));
+    hostaddr.sin_family = AF_INET;
+    hostaddr.sin_addr.s_addr = inet_addr(lcladdr);
+    if (bind(s, (struct sockaddr *)&hostaddr, sizeof(hostaddr)) < 0) {
+      perror("bind");
+    }
+  }
+
   hold = 1;	/* use temporarily for setsockopt() */
   if (options & F_SO_DEBUG)
     setsockopt(s, SOL_SOCKET, SO_DEBUG, (char *) &hold, sizeof(hold));
@@ -1233,7 +1221,15 @@ setup_sockaddr(addr)
   to = &dst->sockad;
   to->sin_family = PF_INET;
   to->sin_addr.s_addr = inet_addr(addr);
-  if (to->sin_addr.s_addr != (u_int)-1)
+  if (to->sin_addr.s_addr == 0) {
+      fprintf(stderr, "ping: unknown host %s\n", addr);
+      exit (1);
+  }
+#ifdef INADDR_NONE
+  else if (to->sin_addr.s_addr != INADDR_NONE)
+#else
+  else if (to->sin_addr.s_addr != (u_int)-1)
+#endif
     strcpy(dst->hostname, addr);
   else {
     hp = gethostbyname(addr);
