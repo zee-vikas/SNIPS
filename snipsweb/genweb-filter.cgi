@@ -1,11 +1,13 @@
 #!/usr/bin/perl -w
 #
-# CGI to display GUI to invoke genweb2.cgi with appropriate parameters.
+# CGI to display GUI to invoke genweb.cgi with appropriate parameters.
+#
+# Rocky@panix.com, June 2000
 #
 #
 my $vcid = '$Id$ ';
 
-use vars qw ( $debug $refresh $large_refresh $genweb2_cgi
+use vars qw ( $debug $refresh $large_refresh $genweb_cgi
 	      $snipsroot $etcdir $max_table_rows
 	    );
 $snipsroot = "/usr/local/snips";	# SET_THIS
@@ -34,7 +36,8 @@ if (defined($a) &&  $a eq 'Submit') {
 ### Subroutines
 ###
 sub init {
-  require  "snipsweb-cfg.pl";		# in etcdir
+  require  "snipsperl.conf";
+  require  "snipsweb-confg";		# in etcdir
   use CGI;	# also requires Base64.pm
   $query = new CGI;
   $debug= $query->param('debug') if $query->param('debug');
@@ -125,7 +128,7 @@ sub make_url {
   my($query) = @_;
   my(@values,$key);
   my $param;
-  my $url=$genweb2_cgi;
+  my $url=$genweb_cgi;
   
   foreach $key ($query->param) {
     next if $key eq 'Action';
