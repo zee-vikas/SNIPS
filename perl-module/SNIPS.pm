@@ -17,17 +17,20 @@ require AutoLoader;
 	     &snips_main  &snips_startup  &snips_reload
 	     &read_event &write_event &new_event
 	     &pack_event &unpack_event &print_event
-	     $configfile $datafile
+	     $s_configfile $s_datafile $s_sender
+	     $E_CRITICAL $E_ERROR $E_WARNING $E_INFO
+	     $n_UP $n_DOWN $n_UNKNOWN $n_TEST $n_NODISPLAY
 	    );
 
 @EXPORT_OK = qw(
 	       );
 
 use vars qw (
-	     $autoreload $debug $myname
-	     $configfile $datafile $extension
+	     $autoreload $debug $prognm $pollinterval $libdebug
+	     $s_configfile $s_datafile $s_sender $extension
 	     $HOSTMON_SERVICE $HOSTMON_PORT $bindir $ping $rpcping
-	     $libdebug
+	     $E_CRITICAL $E_ERROR $E_WARNING $E_INFO
+	     $n_UP $n_DOWN $n_UNKNOWN $n_TEST $n_NODISPLAY
 	    );
 
 $VERSION = '0.01';
@@ -44,17 +47,30 @@ $HOSTMON_PORT = 5355 unless $HOSTMON_PORT; # used if not in /etc/services
 $ping = "ping";				# SET_THIS to ping location
 $rpcping = "$bindir/rpcping" unless $rpcping; # SET_THIS, used by 'hostmon'
 
-$libdebug = 0 unless $libdebug;
+$pollinterval = 300 ;	# set to a default value in seconds
+$libdebug = 0;
+
+$E_CRITICAL = 1;
+$E_ERROR    = 2;
+$E_WARNING  = 3;
+$E_INFO     = 4;
+
+$n_UP          = 0x01;
+$n_DOWN        = 0x02;
+$n_UNKNOWN     = 0x04;
+$n_TEST        = 0x08;
+$n_NODISPLAY   = 0x10;
 
 ##  ### ### ### ##
 
 ## following are aliases for functions (safer to @EXPORT)
 sub snips_main {  return ( SNIPS::main(@_) ); }
 
-sub snips_startup {  return ( SNIPS::startup(@_) ); }
+sub snips_startup {  return SNIPS::startup(@_); }
 
-sub snips_reload { return ( SNIPS::reload(@_) ); }
+sub snips_reload { return SNIPS::reload(@_); }
 
+sub open_datafile { return SNIPS::fopen_datafile(@_); }
 
 ## snips_main()
 # This is a sample generic main(). You dont have to call this function.
@@ -68,16 +84,15 @@ sub snips_reload { return ( SNIPS::reload(@_) ); }
 sub main {
   my ($readconf_func, $poll_func, $test_func) = @_;
 
-  $myname = $0;
-  # my $prognm = $myname;
-  # $prognm =~ s|^.*/||;
+  $prognm = $0;
+  $test_func = \&do_test  if ( ! defined($test_func) );	# FIX FIX
+
   if ( ! defined($poll_func) && !defined($test_func) ) {
     print STDERR ("FATAL: need either poll_function or test_function ",
 		  "set when calling ", (caller(0))[3], "()\n" );
     exit 1;
   }
 
-  my $pollinterval = 60 ;	# FIX FIX, should be in calling routine
   parse_opts();
 
   startup();
@@ -89,6 +104,8 @@ sub main {
   while (1)
   {
     my $starttm = time;
+    $debug = get_debug_flag();	# update from xsub (USR1 signal increases it)
+
     if (defined ($poll_func)) {
       done() if ( &$poll_func() < 0 ) ;
     }
@@ -99,16 +116,16 @@ sub main {
     check_configfile_age()  if ($autoreload);
 
     if ( get_reload_flag() ) {
-      reload();
-      next;
+      reload($readconf_func);
+      next;	# dont sleep
     }
 
     my $polltime = time - $starttm;
-    print STDERR "$myname: polltime = $polltime secs\n"  if ($debug);
+    print STDERR "$prognm: polltime = $polltime secs\n"  if ($debug);
 
     if ($polltime < $pollinterval) {
       my $sleeptime = $pollinterval - $polltime;
-      print STDERR "$myname: Sleeping for $sleeptime secs\n"  if $debug;
+      print STDERR "$prognm: Sleeping for $sleeptime secs\n"  if $debug;
       $SIG{ALRM} = 'DEFAULT';	# restore in case blocked
       sleep($sleeptime);
     }
@@ -121,29 +138,29 @@ sub main {
 sub parse_opts {
 
   getopts("adf:o:x:");	# sets $opt_x
-
   if ($opt_a) { ++$autoreload ; } # will reload if configfile modified
   if ($opt_d) { ++$debug ; }
   if ($opt_f) { set_configfile($opt_f) ; }
   if ($opt_o) { set_datafile($opt_o) ; }
   if ($opt_x) { $extension = $opt_x ; }
 
-  set_debug_flag($debug) if ($debug);
-  set_autoreload_flag($autoreload) if ($autoreload);
 }
 
 ## Sets up signal handlers, kills other running process, sets 
 #  default  config and data filenames.
 sub startup {
 
-  $myname = $0;
-  # my $prognm = $myname;
-  # $prognm =~ s|^.*/||;
+  $prognm = $0;
+  $s_sender = $prognm;
+  $s_sender =~ s|^.*/||;	# without the directory prefix
 
-  my $rc = SNIPS::_startup($myname, $extension);
+  my $rc = SNIPS::_startup($prognm, $extension);
 
-  $configfile = get_configfile() if (! $configfile);
-  $datafile = get_datafile() if (! $datafile);
+  set_debug_flag($debug) if ($debug);
+  set_autoreload_flag($autoreload) if ($autoreload);
+
+  $s_configfile = get_configfile() if (! $s_configfile);
+  $s_datafile = get_datafile() if (! $s_datafile);
 
   return $rc;
 }
@@ -153,16 +170,21 @@ sub startup {
 sub reload {
   my ($readconfig_func) = @_;
 
-  my $ndatafile = $datafile . ".hup";	# new datafile
+  my $ndatafile = $s_datafile . ".hup";	# new datafile
 
   print STDERR "Reloading...";
+  set_reload_flag(0);		# reset at start
 
-  my $odatafile = $SNIPS::datafile;
-  $SNIPS::datafile = $ndatafile;	# temporarily set to new filename
+  if (! defined($readconfig_func)) {
+    print STDERR "Cannot reload, no readconfig function set in program\n";
+    return -1;
+  }
+  my $odatafile = $s_datafile;
+  $s_datafile = $ndatafile;	# temporarily set to new filename
 
-  &$readconfig_func();			# writes to new datafile
+  &$readconfig_func();		# writes to new datafile
 
-  $SNIPS::datafile = $odatafile;	# restore
+  $s_datafile = $odatafile;	# restore
   
   copy_events_datafile($odatafile, $ndatafile);
 
@@ -222,15 +244,21 @@ sub poll_sites {
   my $event = undef;
   my ($status, $value, $thres, $maxsev);
 
-  open (OEVENTS, "+> $datafile");	# open for read + write
-  my $fd = fileno(OEVENTS);		# get file descriptor
+  # $debug = 3;
+  print STDERR "inside generic poll_sites\n" if ($debug > 2);
 
-  read_dataversion($fd);
+  my $fd = open_datafile($s_datafile, "r+");	# open for read + write
 
   while ( ($event = read_event($fd) ) ) 
   {
     ++$siteno;
-    ($status, $value) = &$test_func(\$event, $siteno);
+
+    # call test function
+    # only $value is really needed, rest can be undef.
+    # If $thres is undef, update_event() will keep old threshold
+    ($status, $value, $thres, $maxsev) = &$test_func(\$event, $siteno);
+
+    $maxsev = $E_CRITICAL  if (! defined($maxsev));
     if ( ! defined ($status) )
     {
       my %event = unpack_event($event);
@@ -239,13 +267,14 @@ sub poll_sites {
 		    $event{threshold});
     }
     
-    update_event($event, $status, $value, $maxsev);
+    update_event($event, $status, $value, $thres, $maxsev);
     rewrite_event($fd, $event);
     last if (get_reload_flag());
 
   }	# while (readevent)
 
-  close (OEVENTS);
+  print STDERR "poll_sites(): Processed $siteno sites\n" if ($debug > 1);
+  close_datafile($fd);
   return 1;
 }	# sub poll_sites()
 
@@ -262,12 +291,164 @@ snips - Perl extension for SNIPS (System & Network Integrated Polling Software)
 =head1 SYNOPSIS
 
   use SNIPS;
-  blah blah blah
 
 =head1 DESCRIPTION
 
 SNIPS.pm is a perl interface to SNIPS
 (http://www.netplex-tech.com/software/snips) for writing Perl monitors.
+
+=head2 API FUNCTIONS
+
+The following functions can be called by specifying the SNIPS package name:
+
+    SNIPS::function()
+
+Alternatively, some functions are exported into the calling file's namespace
+as a convenience. These are aliases for the main(), reload() etc. functions
+below, but can be called without specifying the complete package name:
+
+	     snips_main()
+	     snips_startup()
+	     snips_reload()
+	     snips_datafile()
+
+=over
+
+=item main(\&readconfig, \&dopoll, \&dotest)
+
+This is a generic main, and it will call the user defined functions dopoll()
+or if undefined, it will invoke a generic dopoll() with dotest() for each
+site.
+
+Note the '\' before the '&' to pass function references to main().
+
+The readconfig() function should ideally write out an event for each device
+to be monitored to the output file.
+If dopoll() is defined, then this function must do one complete pass over
+monitoring all the sites. main() will call dopoll() in an endless loop and
+check for any HUP signal between polls to see if the readconfig() function
+should be called to reload the new config file.
+
+If dopoll() is NOT defined, but dotest() is defined, then this function is
+invoked with the EVENT and the event-number (starting with 1) as input
+parameters. The function should return a list with the following fields:
+
+       ($status, $value, $thres, $max_severity) = &dotest(EVENT *ev, count)
+
+Instead of using main(), a monitor can use the following instead (in
+pseudocode, no parameters are listed for the functions):
+
+	startup()
+	sub readconfig()
+	{
+		open_datafile()
+		new_event()
+		foreach device
+		{
+			alter_event()
+			write_event()
+		}
+		close_datafile()
+	}
+	while (1)
+	{
+	  sub dopoll()
+	  {
+		open_datafile()
+		while (read_event())
+		{
+			sub dotest()
+			{
+				%event = unpack_event()
+				### test function here ###
+				calc_status()
+				update_event() # or set %event fields directly
+				# pack_event() if changed %event fields
+				write_event()
+			}
+			close_datafile()
+			if (get_reload_flag())
+			   reload()
+			sleep()
+		} # end while
+	  } # end dopoll
+
+	}  # end while
+
+=item startup()
+
+=item reload(\&readconfig)
+
+On getting a HUP signal, the 'doreload' flag is set to a non-zero value. On
+detecting this flag, you should call reload() with the reference to the
+readconfig() function as a parameter.
+
+This function will then call readconfig() (which should write out the initial
+datafile by re-reading the config file), and then copy over current monitored 
+state information from the current datafile to the new datafile. It resets
+the reload flag before returning.
+
+=item EVENT * new_event()
+
+=item init_event(EVENT * event)
+
+=item alter_event(EVENT *ev, sender, sitename, siteaddr, varname, varunits)
+
+This is a utility routine which allows you to set the fields in the EVENT
+structure without having to unpack() and then pack(). ALL the fields are
+character strings, and any of the fields can be 'undef' to leave it
+unchanged. To delete a field, set it to the empty string "".
+
+=item update_event(EVENT *ev, status, value, thres, severity)
+
+This updates the event 'ev' with the specified values. 'status' is 0 or 1,
+'value' is the measured/monitored value, 'thres' is the new threshold that
+has been exceeded, 'severity'  is the new severity of the event. 'thres' can
+be 'undef' if it is unchanged (i.e. not working with 3 thresholds).
+
+=item open_datafile()
+
+=item close_datafile()
+
+=item calc_status(int value, int warn_thres, error_thres, crit_thres)
+
+If the monitor has 3 separate thresholds for the variable being monitored,
+calc_status() is a utility routine which calculates which threshold the value
+exceeds. It returns:
+
+	 ($status, $threshold, $maxseverity) = calc_status(...)
+
+This is typically called to get the parameters to call update_event()
+
+
+=item read_event()
+
+=item write_event()
+
+=item pack_event()
+
+=item unpack_event()
+
+=back
+
+=head2 VARIABLES
+
+=over
+
+=item $s_configfile  $s_datafile
+
+These are the configfile and datafile names, and automatically created by the 
+startup() function.
+
+=item $E_INFO $E_WARN $E_ERROR $E_CRITICAL
+
+These are constants for the various severity levels.
+
+=item $debug $dorrd $autoreload $doreload
+
+More global variables.
+
+=back
 
 =head1 AUTHOR
 
