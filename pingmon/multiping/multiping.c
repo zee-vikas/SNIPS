@@ -31,6 +31,9 @@
  *
  *
  * $Log$
+ * Revision 1.12  1998/07/31 18:34:17  vikas
+ * Avoid divide by zero
+ *
  * Revision 1.11  1997/01/28 11:05:43  vikas
  * Now stores the index into the destrec[] array in the packet
  * that is sent (faster and can now handle duplicates).
@@ -44,12 +47,12 @@
  * Added fprintf() so that in sendto errors, the sitename is printed out
  * to stderr instead of to stdout.
  *
- * Revision 1.7  1994/01/03  22:48:31  aggarwal
+ * Revision 1.7  1994/02/03  22:48:31 vikas 
  * Deleted 'values.h' include. Also forced a delay in mpinger() if
  * the first select() returned positive (since it was sending packets
  * out too fast).
  *
- * Revision 1.6  1993/12/30  01:21:04  aggarwal
+ * Revision 1.6  1994/02/02  01:21:04  vikas
  * Major change in logic-- now uses 'select' for interpacket delays
  * and uses the time paused for parsing any return packets.
  * Improved performance by a factor of 10:
@@ -107,6 +110,9 @@ static char rcsid[] = "$Id$";
 #include <sys/file.h>
 #include <sys/time.h>
 #include <sys/signal.h>
+#if defined(AIX) || defined(_AIX)
+# include <sys/select.h>
+#endif
 
 #include <netinet/in_systm.h>	/* required for ip.h */
 #include <netinet/in.h>
@@ -159,7 +165,6 @@ main(argc, argv)
   register int    i;
   int             ch, fdmask, hold, preload;
   u_char         *datap;
-  char           *malloc();
 #ifdef IP_OPTIONS
   char            rspace[3 + 4 * NROUTES + 1];	/* record route space */
 #endif
@@ -858,7 +863,13 @@ output_new_style()
     printf("\nTOTALS                         %6ld  %6ld  %6ld  %3ld%%",
       sent, rcvd, rpts, (int) (((sent - rcvd) * 100) / sent));
     if (timing)
-      printf("    %4ld  %4ld  %4ld", tmin, tsum / rcvd, tmax);
+    {
+      if (rcvd)		/* avoid divide by zero */
+	printf("    %4ld  %4ld  %4ld", tmin, tsum / rcvd, tmax);
+      else
+        printf("       0     0     0");
+    }
+
   }
   putchar('\n');
   exit(0);
