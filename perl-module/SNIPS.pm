@@ -19,20 +19,21 @@ require DynaLoader;
 	     &snips_main  &snips_startup  &snips_reload
 	     &read_event &write_event &new_event
 	     &pack_event &unpack_event &print_event
-	     &update_event &alter_event
-	     &str2severity
+	     &update_event &alter_event &rewrite_event
+	     &str2severity &open_datafile &close_datafile
+	     $libdebug
 	     $s_configfile $s_datafile $s_sender
 	     $E_CRITICAL $E_ERROR $E_WARNING $E_INFO
 	     $n_UP $n_DOWN $n_UNKNOWN $n_TEST $n_NODISPLAY
 	    );
 
 @EXPORT_OK = qw(
-		$autoreload $debug $doreload $dorrd 
+		$autoreload $doreload $dorrd 
 		$prognm $pollinterval
 	       );
 
 use vars qw (
-	     $autoreload $debug $doreload $dorrd 
+	     $autoreload $libdebug $doreload $dorrd 
 	     $prognm $pollinterval
 	     $s_configfile $s_datafile $s_sender $extension
 	     $E_CRITICAL $E_ERROR $E_WARNING $E_INFO
@@ -46,7 +47,7 @@ $VERSION = '0.01';
 bootstrap SNIPS $VERSION;
 
 # Preloaded methods go here.
-tie $debug, 'SNIPS::globals', 'debug';
+tie $libdebug, 'SNIPS::globals', 'debug';
 tie $dorrd, 'SNIPS::globals', 'dorrd';
 tie $doreload, 'SNIPS::globals', 'doreload';
 tie $autoreload, 'SNIPS::globals', 'autoreload';
@@ -80,6 +81,16 @@ sub snips_startup {  return SNIPS::startup(@_); }
 sub snips_reload { return SNIPS::reload(@_); }
 
 sub open_datafile { return SNIPS::fopen_datafile(@_); }
+
+
+##
+# Constructor method
+sub new {
+  my $class = shift;
+  my $self = {};		# allocate new memory
+  bless($self, $class);
+  return $self;
+}
 
 ## snips_main()
 # This is a sample generic main(). You dont have to call this function.
@@ -132,11 +143,11 @@ sub main {
     }
 
     my $polltime = time - $starttm;
-    print STDERR "$prognm: polltime = $polltime secs\n"  if ($debug);
+    print STDERR "$prognm: polltime = $polltime secs\n"  if ($libdebug);
 
     if ($polltime < $pollinterval) {
       my $sleeptime = $pollinterval - $polltime;
-      print STDERR "$prognm: Sleeping for $sleeptime secs\n"  if $debug;
+      print STDERR "$prognm: Sleeping for $sleeptime secs\n"  if $libdebug;
       $SIG{ALRM} = 'DEFAULT';	# restore in case blocked
       sleep($sleeptime);
     }
@@ -150,7 +161,7 @@ sub parse_opts {
 
   getopts("adf:o:x:");	# sets $opt_x
   if ($opt_a) { ++$autoreload ; } # will reload if configfile modified
-  if ($opt_d) { ++$debug ; }
+  if ($opt_d) { ++$libdebug ; }
   if ($opt_f) { $s_configfile = $opt_f; }
   if ($opt_o) { $s_datafile = $opt_o ; }
   if ($opt_x) { $extension = $opt_x ; }
@@ -259,8 +270,7 @@ sub poll_sites {
   my $event = undef;
   my ($status, $value, $thres, $maxsev);
 
-  # $debug = 3;
-  print STDERR "inside generic poll_sites\n" if ($debug > 2);
+  print STDERR "inside generic poll_sites\n" if ($libdebug > 2);
 
   my $fd = open_datafile($s_datafile, "r+");	# open for read + write
 
@@ -288,7 +298,7 @@ sub poll_sites {
 
   }	# while (readevent)
 
-  print STDERR "poll_sites(): Processed $siteno sites\n" if ($debug > 1);
+  print STDERR "poll_sites(): Processed $siteno sites\n" if ($libdebug > 1);
   close_datafile($fd);
   return 1;
 }	# sub poll_sites()
@@ -562,11 +572,11 @@ set_datafile() to change the names in the C library.
 
 These are constants for the various severity levels and correspond to 4-1.
 
-=item $debug $dorrd $autoreload $doreload $pollinterval
+=item $libdebug $dorrd $autoreload $doreload $pollinterval
 
 These are not exported, so in order to access these variables you
-have to specify the package name (e.g. C<$SNIPS::debug>).
-C<$debug> will enable debugging (higher than one is more verbose),
+have to specify the package name (e.g. C<$SNIPS::libdebug>).
+C<$libdebug> will enable debugging (higher than one is more verbose),
 C<$dorrd> will enable generation of RRDtool graph data,
 C<$autoreload> is set when the user specifies C<-a> on the command line
 and the function 'check_configfile_age()' should be called if this is set
