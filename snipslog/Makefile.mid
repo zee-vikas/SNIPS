@@ -4,14 +4,10 @@
 #
 # 
 
-LOGHOST = @LOGHOST@
-
 # ETCDIR is used for the config file.
 # PIDDIR is used for the error file.
-# Also EDIT THE ../include/snipslogd.h for setting host and other information.
 
-PROGCDEFS =	-DETCDIR=\"$(ETCDIR)\" -DPIDDIR=\"$(PIDDIR)\"  \
-		-DSNIPS_LOGHOST=\"$(LOGHOST)\"
+PROGCDEFS =	-DETCDIR=\"$(ETCDIR)\" -DPIDDIR=\"$(PIDDIR)\"
 PROGLIBS  =
 
 TARG =	snipslogd
