@@ -16,6 +16,9 @@ static char *RCSid = "$Header$" ;
 
 /*
  * $Log$
+ * Revision 1.1  2001/08/01 01:08:06  vikas
+ * Was not setting the name of the snips config file correctly.
+ *
  * Revision 1.0  2001/07/08 21:47:32  vikas
  * For SNIPS v1.0
  *
@@ -94,10 +97,10 @@ readconfig()
   extern char **devlist;		/* in etherload.h */
     
 
+  configfile = (char *)get_configfile();
+
   if (debug)
     fprintf (stderr, "Opening config file '%s'\n", configfile);
-
-  configfile = (char *)get_configfile();
 
   if ((cfile = fopen(configfile, "r")) == NULL)
   {

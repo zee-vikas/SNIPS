@@ -33,6 +33,9 @@ static char *RCSid = "$Id$";
 
 /*
  * $Log$
+ * Revision 1.1  2001/08/01 01:08:06  vikas
+ * Was not setting the name of the snips config file correctly.
+ *
  * Revision 1.0  2001/07/08 21:47:32  vikas
  * For SNIPS v1.0
  *
@@ -105,7 +108,7 @@ main(argc, argv)
   char **argv;
 {
   register int i;
-  char *cfile;
+  char *cfile = NULL;
   extern char *os_devices[] ;	/* standard device names for each OS */
   extern char *optarg;
   extern int  optind;
@@ -154,11 +157,10 @@ main(argc, argv)
 
 #ifdef SNIPS
   fprintf (stderr, "%s: This is a SNIPS version\n", prognm);
-  if (cfile && *cfile)
-    snips_begin(cfile);
-  else
-    snips_begin(argv[optind]);		/* config file as the args */
-
+  if (cfile == NULL || *cfile == '\0')
+    if (argc > optind)
+      cfile = argv[optind];		/* config file as the args */
+  snips_begin(cfile);
 #else
   if (argc > optind)
     devlist = &argv[optind];		/* specified interfaces */
