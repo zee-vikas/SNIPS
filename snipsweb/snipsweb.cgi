@@ -150,7 +150,7 @@ sub set_userlevel {
     # before checking.
     my $referer = (split('\?', $ENV{'HTTP_REFERER'}))[0];
     $referer = "NoHost" if (! $referer);
-    if (grep (/^${referer}$/, @OK_REFERER) > 0 &&
+    if (grep (/^${referer}$/i, @OK_REFERER) > 0 &&
         $FORM{'userlevel'} ne "" && $FORM{'user'} ne "")
     {
       $userlevel = int($FORM{'userlevel'});
