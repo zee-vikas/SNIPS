@@ -115,7 +115,6 @@ use vars qw (
              %view2severity $newevents $neweventAge
 	     @level_color @level_imgs $emptyimg $tfontsize $max_table_rows
 	     %updates $thiscgi $refresh $large_refresh $my_url $prognm @z1
-             $sec $min $hour $mday $mon $year $weekday $yrday $daylite
 	     $debug @row_data $cgimode $filter_cgi $gen_cgi_links
 	     $myStyleSheet $numcols $userViewUpdates %escapes
 	     $prefmt $prefmt_filesz $totaldatasize
@@ -303,7 +302,7 @@ sub print_html_prologue {
   my $action = $views[$view2severity{$view}];
 
   # Date stuff -- replace with Perl module Parse::Date?
-  ($sec, $min, $hour, $mday, $mon, $year, $weekday, $yrday, $daylite) 
+  my ($sec, $min, $hour, $mday, $mon, $year, $weekday, $yrday, $daylite) 
     = localtime(time);
   $mon++;
   $year += 1900;	# fix y2k problem
@@ -648,30 +647,30 @@ sub print_row {
 
   my $restore_url = $cgimode ? "$my_url" : "${baseurl}/${view}.html";
   my $deviceHREF = "<A HREF=\"$snipsweb_cgi?displaylevel=$action";
-  $deviceHREF .= "&devicename=$ev->{device_name}&deviceaddr=$ev->{device_addr}";
-  $deviceHREF .= "&variable=$ev->{var_name}&sender=$ev->{sender}";
-  $deviceHREF .= "&command=Updates&restoreurl=$restore_url\">";
+  $deviceHREF = $deviceHREF .
+    "&devicename=$ev->{device_name}&deviceaddr=$ev->{device_addr}" .
+      "&subdevice=$ev->{device_subdev}&variable=$ev->{var_name}" .
+	"&sender=$ev->{sender}" .
+	  "&command=Updates&restoreurl=$restore_url\">";
   # $deviceHREF = uri_escape($deviceHREF);
   #$deviceHREF =~ s/\+/$escapes{'+'}/g;	# + has special meaning in URLs?
-  if ($max_table_rows == -1 || $prefmt == 1) {
+  if ($max_table_rows == -1 || $prefmt == 1)
+  {
     # need to put the href in front of the devicename, but we dont want
     # the devicename to be prepended with underlined blanks. i.e. convert
     #   '<a href="xx">   device</a>'  INTO  '  <a href="xx">device</a>'
     my $device = sprintf "%-14.14s", $ev->{device_name}; # printing size
     $device =~ s|(\S+)|$deviceHREF$1</a>| ;
+    my @tm = localtime($ev->{eventtime});
     printf "%4d %1.1s  %s %-15.15s  %12.12s= %8lu  %02d/%02d %02d:%02d %-12s %s\n",
       $entry_count, $views[$ev->{severity}], $device,
       $ev->{device_addr}, $ev->{var_name}, $ev->{var_value},
-      $ev->{mon},$ev->{day},$ev->{hour},$z1[$ev->{min}], $ev->{sender}, 
-      $update;
+      $tm[4]+1, $tm[3], $tm[2], $tm[1], $ev->{sender}, $update;
     return;
   }
 
   ## see if this is a recent event (less than $neweventAge minutes old)
-  if ($ev->{loglevel} != $E_INFO &&
-      $mon == $ev->{mon} && $mday == $ev->{day} &&
-      (($hour * 60) + $min) - (($ev->{hour} * 60) + $ev->{min}) < $neweventAge
-     )
+  if ($ev->{loglevel} != $E_INFO &&  time - $ev->{eventime} < $neweventAge)
   {
       ++$newevents;			# total displayed in Messages
       $ifnewbg = "bgcolor=yellow";	# background of the little button
@@ -691,26 +690,26 @@ sub print_row {
   print $tdend;
 
   my $devicename = $ev->{device_name};
-  if ($ADMINMODE) {
-    $deviceHREF =~ s/command\=Updates/command\=DeviceHelp/;  # change the command
-    $devicename = "$deviceHREF" . "$ev->{device_name}" . "</a>";
+  if ($ev->{device_subdev} ne "") {
+    $devicename = "$ev->{device_subdev}" . "+${devicename}";
   }
+  if ($ADMINMODE) {
+    $deviceHREF =~ s/command\=Updates/command\=DeviceHelp/;  # change command
+    $devicename = "$deviceHREF" . "$devicename" . "</a>";
+  }
+  my ($x, $min, $hr, $mday, $mon, $yr, $x,$x,$x) = localtime($ev->{eventtime});
+  ++$mon;
   print <<EoRow ;
     $tdstart $entry_count $tdend
     $tdstart $views[$ev->{severity}]  $tdend
     $tdstart $devicename $tdend
     $tdstart $ev->{device_addr} $tdend
-
     <td nowrap align=right class="data"> 
        &nbsp; $ev->{var_name}= $ev->{var_value} &nbsp; $tdend
-
-    <td nowrap align=right $ifnewbg class="data">
-       $ev->{mon}/$ev->{day} $ev->{hour}:$z1[$ev->{min}]  $tdend
+    <td nowrap align=right $ifnewbg class="data"> $mon/$mday $hr:$min $tdend
+     $tdstart $ev->{sender} $tdend
 EoRow
 
-  print "
-     $tdstart $ev->{sender} $tdend
-";
   if ($ADMINMODE || $userViewUpdates) {
     print "     $tdstart $update $tdend"; 
   }
@@ -778,7 +777,7 @@ sub print_footer {
 # confusion should that device go down at a later date.
 
 sub remove_updates_entry {
-  my ($devicename, $ipaddr, $varname) = @_;
+  my ($devicename, $deviceaddr, $subdevice, $varname) = @_;
 
   open (SFILE, "< $updatesfile") || return; 
 
@@ -804,8 +803,8 @@ sub remove_updates_entry {
   {
     # skip comments and blank lines
     if (/^\s*\#/ || /^\s*$/) { print SFILE; next; }
-    print "$devicename:$ipaddr:$varname<br>\n" if $debug;
-    next if /^$devicename\:$ipaddr\:$varname/; # dont write out, delete
+    print "$devicename:$deviceaddr:$varname<br>\n" if $debug;
+    next if /^$devicename\:$deviceaddr\:$varname/; # dont write out, delete
     print "not removed<P>\n" if $debug;
     
     print SFILE;

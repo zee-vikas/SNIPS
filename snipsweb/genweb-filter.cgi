@@ -4,7 +4,7 @@
 # This cgi is typically invoked from genweb.cgi. It sets the various
 # parameters and calls genweb.cgi again.
 #
-# Initial version:  Rocky@panix.com, June 2000
+# AUTHOR:  Rocky@panix.com, June 2000
 #
 #
 #

@@ -1,5 +1,5 @@
 #!/usr/local/bin/perl
-
+#
 # $Header$
 #
 # This CGI calls RRD::graph for the file specified as 'rrdfile'.
@@ -16,7 +16,8 @@
 # If a image cache dir is defined and is writable, a copy of the
 # image is saved in this dir and used by RRD::graph --lazy
 #
-#  Vikas Aggarwal, vikas@navya_.com,  March 28, 2000
+# AUTHOR
+#	Vikas Aggarwal, vikas@navya_.com
 #
 ##
 #  PARAMETERS
