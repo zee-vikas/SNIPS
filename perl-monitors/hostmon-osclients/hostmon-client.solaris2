@@ -34,6 +34,12 @@ sub uptime {
       printf "Load5 %d load-5min\n", int($5) ;
       last ;
     }
+    elsif (/^.*up\s+(\d+)\s+day.*,\s*(\d+)\s+min.*,.*load\s*average\S*:\s+(\S+),\s+(\S+),\s+(\S+).*$/ ) {
+      $uptime = ($1 * 1440) + $2;
+      printf "Uptime %d mins\n", $uptime;
+      printf "Load5 %d load-5min\n", int($4) ;
+      last;
+    }
     elsif ( /^.*up\s+(\d+):(\d+),.*load\s*average\S*:\s+(\S+),\s+(\S+),\s+(\S+).*$/ ) {
       $uptime = ($1 * 60) + $2;
       printf "Uptime %d mins\n", $uptime;
