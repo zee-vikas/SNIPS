@@ -20,43 +20,31 @@ print "ok 1\n";
 # (correspondingly "not ok 13") depending on the success of chunk 13
 # of the test code):
 
-# SNIPS::main(\&readconf, undef, \&do_test);
-SNIPS::startup();
-$datafile = $SNIPS::datafile;
-$configfile = $SNIPS::configfile;
+$SNIPS::debug = 2;
+$av = SNIPS::new_event();
+$bv = SNIPS::new_event();
+SNIPS::init_event($av);
+SNIPS::init_event($bv);
+
+SNIPS::alter_event($av, "A1", "A2", "A3", "A4", "A5");
+SNIPS::alter_event($bv, "B1", "B2", "B3", "B4", "B5");
+
+
+###
+SNIPS::main(\&readconf, undef, \&do_test);  #never returns
+#SNIPS::startup();
+$datafile = $SNIPS::s_datafile;
+$configfile = $SNIPS::s_configfile;
 print "\t Datafile = $datafile\n\t Configfile= $configfile\n";
 
 print "Testing event functions:\n";
-#open(DATA, "> $datafile"); $datafd = fileno(DATA);
-#SNIPS::write_dataversion($datafd);
-
-use Fcntl;	# need O_WRONLY and other definitions
-$datafd = SNIPS::open_datafile($datafile, O_WRONLY | O_CREAT | O_TRUNC);
-
-$event = SNIPS::new_event();
-print "\tgot new_event\n";
-
-SNIPS::init_event($event);
-print "\tdone init_event\n";
-
-SNIPS::update_event($event, 1, 54321, 3);
-print "\tdone update_event\n";
-
-$bytes = SNIPS::write_event($datafd, $event);
-print "\tdone write_event ($bytes bytes)\n";
-
-SNIPS::update_event($event, 1, 12345, 3);
-$bytes = SNIPS::write_event($datafd, $event);
-print "\tdone write_event ($bytes bytes)\n";
-
-SNIPS::close_datafile($datafd);
-print "DONE\n\n";
 
 @fields = SNIPS::get_eventfields();
 print "Event fields are:\n   ", join (" ", @fields), "\n";
 
 ($status, $threshold, $maxseverity) = SNIPS::calc_status(2, 1, 3, 5);
 print "\nTested calc_status()\n";
+
 
 print "\nNow reading back events written to $datafile\n";
 
@@ -97,9 +85,38 @@ if (SNIPS::get_reload_flag() > 0) {
 #SNIPS::done();
 
 sub readconf {
-  print "This is subroutine readconf()\n";
+  print "This is subroutine readconf(), file= $s_datafile\n";
+  $datafd = SNIPS::fopen_datafile($s_datafile, "w");
+  
+  $event = SNIPS::new_event();
+  print "\tgot new_event\n";
+  
+  SNIPS::init_event($event);
+  print "\tdone init_event\n";
+  
+  SNIPS::update_event($event, 1, 54321, 4444, $E_WARNING);
+  print "\tdone update_event\n";
+  print_event($event);
+  SNIPS::update_event($event, 1, 66666, undef, $E_CRITICAL);
+  print_event($event);
+  
+  $bytes = SNIPS::write_event($datafd, $event);
+  print "\tdone write_event ($bytes bytes)\n";
+  
+  SNIPS::update_event($event, 1, 12345, 2345, $E_WARNING);
+  $bytes = SNIPS::write_event($datafd, $event);
+  print "\tdone write_event ($bytes bytes)\n";
+  
+  SNIPS::close_datafile($datafd);
+  print "DONE\n\n";
+
 }
 
 sub do_test {
+  my ($event, $siteno) = @_;
+
   print "This is function dotest\n";
+  my ($status, $thres, $maxsev) = SNIPS::calc_status(2, 1, 3, 5);
+  return($status, 2, $thres, $maxsev);
+
 }
