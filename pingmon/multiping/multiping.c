@@ -34,7 +34,11 @@ static char rcsid[] = "$Header$" ;
  * the ICMP socket.
  *
  * $Log$
- * Revision 1.3  1992/06/10 15:04:00  spencer
+ * Revision 1.4  1993/10/31 05:23:05  conklin
+ * Added loop/delay to prevent the return packets from overflowing the
+ * kernel.
+ *
+ * Revision 1.3  1992/06/10  15:04:00  spencer
  * Realized that since recvfrom() tells where the packet came from, I don't
  * need to use the upper four bits to keep track of it (as long as the
  * same IP# doesn't show up more than once on the command line).  So I
@@ -301,7 +305,7 @@ main(argc, argv)
       continue;
     }
     pr_pack((char *) packet, cc, &from);
-    if (npackets && (nreceived >= npackets)) break; 
+    if (npackets && (nreceived >= npackets)) break;
   }
   finish();
   /* NOT REACHED */
@@ -327,15 +331,17 @@ catcher()
   for (i = 0; i < numsites; i++)
     if (dest[i]->nreceived > nreceived)
       nreceived = dest[i]->nreceived;
+
   if (!npackets || ntransmitted < npackets)
     alarm((u_int) interval);
   else {
     if (nreceived) {
       waittime = 2 * tmax / 1000;
-      if (!waittime)
+      if (!waittime) {
 	waittime = 1;
+	}
     } else
-      waittime = MAXWAIT; 
+      waittime = MAXWAIT + 1; 
     signal(SIGALRM, finish);
     alarm((u_int) waittime);
   }
@@ -395,15 +401,23 @@ real_pinger(which)
 
 /*
  * pinger -- front end to real_pinger() so that all sites get pinged with
- * each invocation of pinger()
+ * each invocation of pinger().
+ * Need to add a small delay to prevent the kernel overflow from packets.
+ * Can't use sleep() since that might trigger the wrong ALARM signal
+ * handler.
  */
 
 pinger()
 {
   int             i;
+  register int loop;
 
-  for (i = 0; i < numsites; i++)
+  for (i = 0; i < numsites; i++) {
     real_pinger(i);
+    for (loop = 0; loop < 200000; loop++)	/* delay loop */
+	; /* */
+    }
+	
   ++ntransmitted;
 }
 
