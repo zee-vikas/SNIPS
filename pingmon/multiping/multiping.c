@@ -33,8 +33,17 @@ static char rcsid[] = "$Header$" ;
  * could always be gathered. This program has to run SUID to ROOT to access
  * the ICMP socket.
  *
+ *
  * $Log$
- * Revision 1.5  1993/10/31 05:25:12  aggarwal
+ * Revision 1.6  1993/12/30 01:21:04  aggarwal
+ * Major change in logic-- now uses 'select' for interpacket delays
+ * and uses the time paused for parsing any return packets.
+ * Improved performance by a factor of 10:
+ * 	v1.5 => 9 mins,  203.0u 7.2s 9:06.16 38.5% 0+243k 3+5io 3pf+0w
+ * 	v1.6 => 1 mins,  1.5u 4.3s 1:15.64 7.7% 0+221k 2+4io 4pf+0w
+ * (these times are for 150 sites on cmd line, 10 pkts, 100 byte pkts)
+ *
+ * Revision 1.5  1993/10/31  05:25:12  aggarwal
  * Had an extra '*' in sendto (for 'to'). Reported by Rick Beebe @Yale
  *
  * Revision 1.4  1993/10/31  05:23:05  conklin
@@ -113,6 +122,9 @@ char 		*prognm ;
 char		*pr_addr();
 void            catcher(), prefinish(), finish();
 
+int		packlen ;
+u_char		*packet;
+
 main(argc, argv)
   int             argc;
   char          **argv;
@@ -124,8 +136,8 @@ main(argc, argv)
   struct sockaddr_in *to;
   struct protoent *proto;
   register int    i;
-  int             ch, fdmask, hold, packlen, preload;
-  u_char         *datap, *packet;
+  int             ch, fdmask, hold, preload;
+  u_char         *datap;
   char           *target, hnamebuf[MAXHOSTNAMELEN], *malloc();
 #ifdef IP_OPTIONS
   char            rspace[3 + 4 * NROUTES + 1];	/* record route space */
@@ -214,6 +226,9 @@ main(argc, argv)
     usage();
   while (argc--)
     setup_sockaddr(*argv++);
+
+  if (numsites > 10 && interval == 1)
+    interval = 2;		/* increase time between pings */
 
   if (options & F_FLOOD && options & F_INTERVAL) {
     fprintf(stderr, "%s: -f and -i are incompatible options.\n", prognm);
@@ -308,11 +323,14 @@ main(argc, argv)
       continue;
     }
     pr_pack((char *) packet, cc, &from);
-    if (npackets && (nreceived >= npackets)) break;
-  }
-  finish();
-  /* NOT REACHED */
-}
+
+    /* nreceived is not accurate since it is max of all dest[i]->nreceived */
+/*  if (npackets && (nreceived >= npackets)) break;	/* */
+
+  }	/* end: for(;;) */
+/*  finish();	  /* NOT REACHED */
+
+}	/* end: main() */
 
 /*
  * catcher -- This routine causes another PING to be transmitted, and then
@@ -330,14 +348,14 @@ catcher()
 
   pinger();
   signal(SIGALRM, catcher);
-  nreceived = 0;
-  for (i = 0; i < numsites; i++)
-    if (dest[i]->nreceived > nreceived)
-      nreceived = dest[i]->nreceived;
-
   if (!npackets || ntransmitted < npackets)
     alarm((u_int) interval);
-  else {
+  else {				/* End of transmitting */
+    nreceived = 0;
+    for (i = 0; i < numsites; i++)	/* find max 'nreceived' */
+      if (dest[i]->nreceived > nreceived)
+	nreceived = dest[i]->nreceived;
+
     if (nreceived) {
       waittime = 2 * tmax / 1000;
       if (!waittime) {
@@ -345,10 +363,11 @@ catcher()
 	}
     } else
       waittime = MAXWAIT + 1; 
+
     signal(SIGALRM, finish);
-    alarm((u_int) waittime);
+    alarm((u_int) waittime + interval);
   }
-}
+}	/* end: catcher() */
 
 /*
  * real_pinger -- was 'pinger' in the original but pinger() is now a front
@@ -406,22 +425,46 @@ real_pinger(which)
  * pinger -- front end to real_pinger() so that all sites get pinged with
  * each invocation of pinger().
  * Need to add a small delay to prevent the kernel overflow from packets.
- * Can't use sleep() since that might trigger the wrong ALARM signal
- * handler.
+ * We use 'select' to get small interpkt delays between the ping for each
+ * site and utilize the waiting period to see if any responses came in.
  */
 
 pinger()
 {
-  int             i;
-  register int loop;
+  int	i;
 
-  for (i = 0; i < numsites; i++) {
+  for (i = 0; i < numsites; i++)
+  {
+    int             fromlen, fdmask;
+    register int    cc;
+    struct sockaddr_in from;
+    struct timeval timeout;
+
     real_pinger(i);
-    for (loop = 0; loop < 200000; loop++)	/* delay loop */
-	; /* */
+
+    timeout.tv_sec = 0;
+    timeout.tv_usec = (INTERPKTGAP * 1000);	/* in millisecs */
+    fdmask = 1 << s;
+
+    if (select(s + 1, (fd_set *) & fdmask, (fd_set *) NULL, (fd_set *) NULL,
+	       &timeout) < 1)
+      continue;
+
+    fromlen = sizeof(from);
+    if ((cc = recvfrom(s, (char *) packet, packlen, 0,
+                (struct sockaddr *) &from, &fromlen)) < 0)
+    {
+	if (errno == EINTR)
+	  continue;
+	perror("ping: recvfrom in pinger");
+	continue;
     }
+    else
+      pr_pack((char *) packet, cc, &from);	/* got a packet to process */
+  }
 	
   ++ntransmitted;
+
 }
 
 /*
@@ -472,8 +515,13 @@ pr_pack(buf, cc, from)
 
     /* if so, figure out which site it is in the dest[] array */
     for (wherefrom = 0; wherefrom < numsites; wherefrom++)
-      if (!memcmp((char *) & (dest[wherefrom]->sockad), from,
-                  sizeof(struct sockaddr_in)))
+/*** Need to compare the fields since BSDI messes up ***
+ *      if (!memcmp((char *) & (dest[wherefrom]->sockad), from,
+ *		  sizeof(struct sockaddr_in)))
+ */
+      if ((dest[wherefrom]->sockad.sin_family == from->sin_family) &&    
+	  (dest[wherefrom]->sockad.sin_port == from->sin_port) &&
+	  (dest[wherefrom]->sockad.sin_addr.s_addr == from->sin_addr.s_addr))
         break;
     if (wherefrom >= numsites) {
       fprintf(stderr,
