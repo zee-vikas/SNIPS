@@ -21,6 +21,9 @@ static char *RCSid = "$Header$" ;
 
 /*
  * $Log$
+ * Revision 1.1  2001/08/17 03:27:00  vikas
+ * Deleted curses.h since it is not needed in this file.
+ *
  * Revision 1.0  2001/07/08 21:47:32  vikas
  * For SNIPS v1.0
  *
@@ -29,7 +32,6 @@ static char *RCSid = "$Header$" ;
 #include <sys/param.h>
 #include <sys/stat.h>
 #include <sys/time.h>
-#include <curses.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
