@@ -294,8 +294,8 @@ sub poll_devices {
     {
       my %event = unpack_event($event);
       ($status, $thres, $maxsev) = 
-	calc_status($value, $event{threshold}, $event{threshold},
-		    $event{threshold});
+	calc_status($value, $event{var_threshold}, $event{var_threshold},
+		    $event{var_threshold});
     }
     
     update_event($event, $status, $value, $thres, $maxsev);
@@ -491,7 +491,7 @@ This returns a packed binary event structure with its fields initialized
 This zeroes out the binary event structure and fills it in with the
 current date and time.
 
-=item alter_event(EVENT *ev, sender, devicename, deviceaddr, varname, varunits)
+=item alter_event(EVENT *ev, sender, devicename, deviceaddr, subdevice, varname, varunits)
 
 This is a utility routine which allows you to set the fields in the EVENT
 structure without having to unpack() and then pack(). ALL the fields are
@@ -564,10 +564,10 @@ structure.
 The list of field names can be extracted using I<get_eventfields()>. These
 names are:
 	sender
-	device_name device_addr
+	device_name device_addr device_subdev
 	var_name var_value var_units
-	mon day hour min
 	severity loglevel
+	eventtime  polltime
         state rating op id
 
 =item str2severity(char *severity)

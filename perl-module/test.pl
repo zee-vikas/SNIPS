@@ -38,8 +38,8 @@ $bv = SNIPS::new_event();
 SNIPS::init_event($av);
 SNIPS::init_event($bv);
 
-SNIPS::alter_event($av, "A1", "A2", "A3", "A4", "A5");
-SNIPS::alter_event($bv, "B1", "B2", "B3", "B4", "B5");
+SNIPS::alter_event($av, "A1", "A2", "A3", "A4", "A5", "A6");
+SNIPS::alter_event($bv, "B1", "B2", "B3", "B4", "B5", "B6");
 
 
 ###
