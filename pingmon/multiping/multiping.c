@@ -31,6 +31,10 @@
  *
  *
  * $Log$
+ * Revision 2.0  2000/05/11 20:31:38  vikas
+ * Determine the time to wait in the select call by using gettimeofday()
+ * when the select call returns.
+ *
  * Revision 1.15  2000/04/28 03:34:44  vikas
  * Stopped using signals to trigger next ping cycle. Now uses
  * select() instead which also allows controlling the interval
@@ -148,6 +152,7 @@ main(argc, argv)
   extern int      errno, optind;
   extern char    *optarg;
   struct timeval  timeout, intvl;
+  struct timeval  now, lastping;
   struct protoent *proto;
   register int    i;
   int             ch, hold, preload, dostdin, almost_done = 0;
@@ -330,15 +335,17 @@ main(argc, argv)
     intvl.tv_usec = 10000;	/* 10 ms */
   }
   else {
-    long t;
+    long t;		/* ms */
+    /* Set t to interval in ms adjusted for time to send pkts */
     t = (interval * 1000) - (INTERPKTGAP * (numsites - 1));
     if (t < 0)
-      t = 0;	/* interval in ms adjusted for time to send pkts */
+      t = 10;
     intvl.tv_sec  = (int) (t) / 1000;
-    intvl.tv_usec = (int) (t) % 1000 * 1000;
+    intvl.tv_usec = ((int) (t) % 1000) * 1000;
   }
 
   mpinger();			/* send the first ping */
+  gettimeofday(&lastping, NULL);	/* time of last ping */
 
   while (!finish_up) {
     struct sockaddr_in from;
@@ -347,10 +354,26 @@ main(argc, argv)
     int		    n;
     fd_set	    rfds;
 
-    timeout.tv_sec = intvl.tv_sec;
-    timeout.tv_usec = intvl.tv_usec;
     FD_ZERO(&rfds);
     FD_SET(s, &rfds);
+    gettimeofday(&now, NULL);
+
+    timeout.tv_sec  = lastping.tv_sec + intvl.tv_sec - now.tv_sec;
+    timeout.tv_usec = lastping.tv_usec + intvl.tv_usec - now.tv_usec;
+    while (timeout.tv_usec < 0) {
+      timeout.tv_usec += 1000000;
+      timeout.tv_sec--;
+    }
+    while (timeout.tv_usec >= 1000000) {
+      timeout.tv_usec -= 1000000;
+      timeout.tv_sec++;
+    }
+    if (timeout.tv_sec < 0)
+      timeout.tv_sec = timeout.tv_usec = 0;
+
+    /* fprintf(stderr,
+       "timeout = %ld.%ld\n", timeout.tv_sec, timeout.tv_usec); /*  */
+
     n = select(s + 1, &rfds, (fd_set *)NULL, (fd_set *)NULL, &timeout);
     if (n < 0)
       continue;		/* interrupted, so wait again */
@@ -378,13 +401,16 @@ main(argc, argv)
 	  break;		/* second time around */
 	almost_done = 1;
 	intvl.tv_usec = 0;
-	if (tmax > 0) {		/* have recieved some packets back */
+	if (tmax > 0 || nreceived > 0)
+	{			/* have recieved some packets back */
 	  intvl.tv_sec = 2 * tmax / 1000;
 	  if (!intvl.tv_sec)
 	    intvl.tv_sec = 1;
-	} else
+	}
+	else
 	  intvl.tv_sec = MAXWAIT + 1;
       }
+      gettimeofday(&lastping, NULL);
 
     }	/* if (n == 0 && ... */
 
@@ -410,11 +436,7 @@ wrapup()
     if (dest[i]->nreceived > nreceived)
       nreceived = dest[i]->nreceived;
 
-  if (nreceived >= ntransmitted		/* quit immediately if caught up */
-      || nreceived == 0)		/* or if remote is dead */
-    finish_up = 1;
-  else
-    npackets = ntransmitted + 1;	/* forces wait before exit in main */
+  npackets = ntransmitted + 1;	/* forces wait before exit in main */
 }
 
 /*
