@@ -15,6 +15,9 @@
 
 /*
  * $Log$
+ * Revision 1.2  2002/01/28 23:39:59  vikas
+ * Added 'HUP' word in the info message.
+ *
  * Revision 1.1  2001/07/28 01:44:26  vikas
  * - Now handles mixed endian (converts network to host endian). Patch
  *   sent in by marya@st.jip.co.jp
@@ -206,7 +209,8 @@ serve()
   for (;;) {
     if (sighupflag)
     {
-      fprintf(stderr, "%s (%d): Closing streams & re-reading config file\n", 
+      fprintf(stderr,
+	      "%s (%d): Closing streams & re-reading config file on HUP signal\n",
 	      prognm, mypid);
       readconfig();
       sighupflag = 0;
