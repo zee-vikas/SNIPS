@@ -47,7 +47,7 @@
 #
 # Customization:
 #
-#       Edit '$ping' and its usage for properly 'pinging' a site in main()
+#       Edit '$ping' and its usage for properly 'pinging' a device in main()
 #	Also fix the location of the CMU snmpwalk program and the location
 #	of the MIB file (both are supplied with the snips sources).
 
