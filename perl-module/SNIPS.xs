@@ -9,6 +9,7 @@
 #ifdef __cpluscplus
 extern "C" {
 #endif
+
 #include "EXTERN.h"
 #include "perl.h"
 #include "XSUB.h"
@@ -20,7 +21,6 @@ extern "C" {
 #define _MAIN_
 #include "snips.h"
 #undef _MAIN_
-#include <stdio.h>
 #ifndef PL_na
 # define PL_na na
 #endif
@@ -31,18 +31,39 @@ MODULE = SNIPS		PACKAGE = SNIPS		PREFIX = snips_
 PROTOTYPES: ENABLE
 
 
-# Call the startup function which forks and sets up signal handlers.
-# Need to setup the readconfig function so that the signal handler
-# knows what to call to re-read the config file on HUP.
-# NOTE NOTE: Different arguments as compared to the C routine.
+## Call generic snips_main()  C routine
 int
-_startup(readconf)
-	void  *readconf;
+_main(...)
+  PREINIT:
+	int  i;
+	char **argv;
   CODE:
   {
-	prognm = "perltestmonitor";	/* FIX FIX */
-	set_readconfig_function(readconf);  /* needed by reload */
-	RETVAL = snips_startup(NULL, NULL);
+	argv = (char **)malloc((items) * sizeof(char *));
+	for (i = 0; i < items; ++i)
+	{
+		char *handle = argv[i] = (char *)SvPV(ST(i), PL_na);
+		argv[i] = (char *)Strdup(handle);
+	}
+	optind = 0 ; opterr = 0;
+	RETVAL = snips_main(items, argv);
+	/*** should never return ***/
+
+	for (i = 0; i < items; ++i)		/* just in case... */
+		free(argv[i]);
+	free(argv);
+  }
+  OUTPUT:
+	RETVAL
+
+
+# Call the snips_startup function which sets up signal handlers.
+# NOTE NOTE: Different arguments as compared to the C routine.
+int
+_startup()
+  CODE:
+  {
+	RETVAL = snips_startup();
   }
   OUTPUT:
 	RETVAL
@@ -58,6 +79,57 @@ snips_done()
 
   }
 
+# Following two routines are tricky. The perl routine will call
+# set_readconfig_function(), which sets the parameter in the C
+# library to be call_readconfig().  call_readconfig() then tries
+# to invoke the PERL read_conf subroutine.
+#
+#   DOES NOT WORK      DOES NOT WORK
+int
+call_readconfig(datafd, cfile)
+	int datafd;
+	char *cfile;
+  PREINIT:
+	FILE *fh;
+  CODE:
+  {
+	int count;	/* number of values returned by perl function */
+
+	fh = fdopen(datafd, "r+");	/* for perl */
+
+	/* dSP ;	/* automatically declared in XSUB */
+
+	ENTER ;
+	SAVETMPS ;
+
+	PUSHMARK(SP) ;
+	/* XPUSHs(sv_2mortal(newSViv(datafd)));	/* file desc */
+	XPUSHs(sv_2mortal(newSVpv((char *)fh, sizeof(*fh))));
+	XPUSHs(sv_2mortal(newSVpv(cfile, 0)));
+	PUTBACK ;
+
+	count = perl_call_pv("read_conf", G_SCALAR);	/* or G_ARRAY */
+	SPAGAIN;	/* refresh stack */
+
+	if (count == 1)
+		RETVAL = POPi;	/* pop the return integer value */
+
+	PUTBACK;
+	FREETMPS ;
+	LEAVE ;
+  }
+
+
+#   DOES NOT WORK      DOES NOT WORK  (see above)
+void
+set_readconfig_function()
+
+  CODE:
+  {
+	int call_readconfig();		/* */
+	set_readconfig_function(call_readconfig);
+  }
+
 # Given old file handle, return new filehandle. Check for the value of
 # the global variable  snips::do_reload to decide if should call
 # snips_reload()
@@ -69,7 +141,7 @@ snips_reload(oldfh)
   {
 	int newfd ;
 	FILE *newfh;
-	newfd = snips_reload(fileno(oldfh));
+	newfd = snips_reload(fileno(oldfh), NULL);
 	if (newfd >= 0)
 	{
 	  newfh = fdopen(newfd, "r+");
@@ -81,6 +153,18 @@ snips_reload(oldfh)
   }
   OUTPUT:
 	RETVAL
+
+int
+copy_datafile_events(ofh, nfh)
+	FILE *ofh;
+	FILE *nfh;
+  CODE:
+  {
+	RETVAL = copy_datafile_events(fileno(ofh), fileno(nfh));
+  }
+  OUTPUT:
+	RETVAL
+
 
 char *
 snips_get_datafile()
@@ -199,14 +283,12 @@ calc_status(val, warnt, errt, critt)
 	unsigned long  errt;
 	unsigned long  critt;
   PREINIT:
-	int status, maxseverity, incr;
+	int status, maxseverity;
 	unsigned long  thres;
 
   PPCODE:
   {
-	if (warnt <= critt)
-		incr = 1;
-	status = calc_status(val, warnt, errt, critt, incr,
+	status = calc_status(val, warnt, errt, critt, -1,
 				&thres, &maxseverity);
 	EXTEND(sp, 3);
 	PUSHs(sv_2mortal(newSViv(status)));	/* integer */

@@ -12,8 +12,13 @@ require AutoLoader;
 # names by default without a very good reason. Use EXPORT_OK instead.
 # Do not simply export all your public functions/methods/constants.
 @EXPORT = qw(
-	     debug do_reload autoreload dorrd
+	     &pack_event &unpack_event &print_event
+	     $configfile $datafile
 	    );
+
+@EXPORT_OK = qw(
+		debug do_reload autoreload dorrd
+		);
 
 use vars qw ($configfile $datafile);
 
@@ -23,15 +28,39 @@ bootstrap SNIPS $VERSION;
 
 # Preloaded methods go here.
 
-## Always invoke readconf() for reading the config file.
+## Requires references to the read_config and do_test functions
+#
+#	SNIPS::main(\&read_conf, \&do_test)
+#
+#  to read configfile -	readconf()
+#  to test one site  -	do_test()
+
+sub main {
+  my ($readconf, $dotest) = @_;
+
+  my $prognm = $0;
+  my $sender = $prognm;
+  $sender =~ s|^.*/||;
+
+  printf ("%s %s, XXXX %lx\n", ref($readconf),  ref($dotest), $readconf);
+  SNIPS::set_readconfig_function();
+  SNIPS::set_test_function($dotest);
+
+  print "CALLING main\n";
+  my $rc = SNIPS::_main($0, @ARGV);	# NEVER RETURNS
+
+  return ($rc);
+}
+  
 sub startup {
 
   my $prognm = $0;
-  my $sender = ($prognm =~ s|^.*/||);
-  
-  my $rc = SNIPS::_startup(\&readconf);
-  $configfile = SNIPS::get_configfile();
-  $datafile = SNIPS::get_datafile();
+  my $sender = $prognm;
+  $sender =~ s|^.*/||;
+
+  my $rc = SNIPS::_startup();
+  $configfile = SNIPS::get_configfile() if (! $configfile);
+  $datafile = SNIPS::get_datafile() if (! $datafile);
   return $rc;
 }
 
