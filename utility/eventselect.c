@@ -18,6 +18,9 @@
 
 /*
  * $Log$
+ * Revision 1.1  2008/04/25 23:31:53  tvroon
+ * Portability fixes by me, PROMPTA/B switch by Robert Lister <robl@linx.net>.
+ *
  * Revision 1.0  2001/07/09 04:12:47  vikas
  * Utility programs for SNIPS
  *
@@ -29,13 +32,19 @@ static char rcsid[] = "$Id$";
 
 #define _MAIN_
 #include "snips.h"
+#include "snips_funcs.h"
+#include "eventlog.h"
+#include "event_utils.h"
 #undef _MAIN_
 
 #include <sys/types.h>
+#include <ctype.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <fcntl.h>		/* for read() */
 #include <unistd.h>		/* for read() */
 #include <time.h>
+#include <string.h>
 #include <sys/time.h>
 
 
@@ -45,7 +54,12 @@ static char *(device[32]), *(sender[32]), *(var[32]);	/* ptrs to strings */
 static time_t fromsecs, tosecs;
 static int ndevice, nvar, nsender;
 
-main(ac, av)
+/* function prototypes */
+int eventselect(char *dfile);
+int cmpstrlist(char *strlist[], char *str);
+void help();
+
+int main(ac, av)
   int ac;
   char **av;
 {
@@ -128,9 +142,10 @@ main(ac, av)
 	fprintf(stderr, "PROCESSING FILE %s\n", av[optind]);
       eventselect(av[optind]);
     }
+  return(0);
 }	/* end main() */
 
-eventselect(dfile)
+int eventselect(dfile)
   char *dfile;		/* data file name */
 {
   EVENT nullevt, evt;
@@ -176,6 +191,7 @@ eventselect(dfile)
 	    (char *)strerror(errno) );
 
   close(fd);
+  return(0);
 }		/* eventselect() */
 
 /*
@@ -183,7 +199,7 @@ eventselect(dfile)
  * If array of string is null, returns 1 (OK).
  * Return 1 if ok, 0 if not.
  */
-cmpstrlist(strlist, str)
+int cmpstrlist(strlist, str)
   char *strlist[];
   char *str;
 {
@@ -203,7 +219,7 @@ cmpstrlist(strlist, str)
   return(0);
 }
 
-help()
+void help()
 {
       fprintf(stderr, "Valid Options are:\n\
 \t-d \t enable debug \n\

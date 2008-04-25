@@ -8,6 +8,9 @@
 
 /*
  * $Log$
+ * Revision 1.1  2008/04/25 23:31:52  tvroon
+ * Portability fixes by me, PROMPTA/B switch by Robert Lister <robl@linx.net>.
+ *
  * Revision 1.0  2001/07/09 03:33:52  vikas
  * sniptstv for SNIPS v1.0
  *
@@ -19,6 +22,7 @@
 
 #include 	<stdio.h>
 #include	<string.h>
+#include	<errno.h>
 
 #include	"snipstv.h"
 
@@ -32,7 +36,10 @@
 #define WFULL(w)  	(w->_cury == (w->_maxy - 2)) ? 1:0
 #endif
 
-help_page()
+/* function prototypes */
+int help_title(WINDOW *hwin, int hpage);
+
+int help_page()
 {
   extern int errno;
   extern char *helpfile ;			/* In snipstv.h  */
@@ -86,7 +93,7 @@ help_page()
 }						/* end: help_page	*/
 
 
-help_title(hwin, hpage)
+int help_title(hwin, hpage)
   WINDOW *hwin;
   int hpage;
 {

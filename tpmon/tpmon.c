@@ -37,6 +37,9 @@ CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 /*+
  *
  * $Log$
+ * Revision 1.1  2008/04/25 23:31:52  tvroon
+ * Portability fixes by me, PROMPTA/B switch by Robert Lister <robl@linx.net>.
+ *
  * Revision 1.0  2001/07/12 02:47:17  vikas
  * Initial revision
  *
@@ -56,11 +59,12 @@ CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#include <ctype.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <netdb.h>
-#ifndef NeXT
-#  include <unistd.h>
-#endif	/* NeXT */
+#include <unistd.h>
 #include <signal.h>
 #include <fcntl.h>
 

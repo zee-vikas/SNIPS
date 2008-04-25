@@ -19,6 +19,9 @@
 
 /*
  * $Log$
+ * Revision 1.1  2008/04/25 23:31:52  tvroon
+ * Portability fixes by me, PROMPTA/B switch by Robert Lister <robl@linx.net>.
+ *
  * Revision 1.0  2001/07/09 03:33:52  vikas
  * sniptstv for SNIPS v1.0
  *
@@ -32,6 +35,7 @@
 
 #include <sys/types.h>
 #include <stdio.h>
+#include <string.h>
 #include <signal.h>
 
 #define _MAIN_
@@ -39,15 +43,23 @@
 # include  "snipstv.h"		/* application specific	*/
 #undef _MAIN_
 
-void finish(), winresize();
+#include "snips_funcs.h"
+#include "create_subwins.h"
+#include "main.h"
+#include "init.h"
+#include "parse_user_input.h"
+
 static WINDOW *basewin = NULL;	/* base or root window i.e. the screen */
 
-main(ac, av, environ)
+/* function prototypes */
+void update_subwins();
+void help();
+
+int main(ac, av, environ)
   int ac;
   char *av[];
   char *environ[];		/* shell user environment, TERMinal etc. */
 {
-  register int i;
   char c;
   extern char *optarg;
   extern int  optind;
@@ -63,7 +75,6 @@ main(ac, av, environ)
   if (debug)
     fprintf (stderr, "Data Format version %d\n", DATA_VERSION);
 #endif
-/*  snipsconf();		/* library function extracts data and other dirs */
 
   pageno = 1;
   belloff = 1;
@@ -150,7 +161,7 @@ main(ac, av, environ)
 
 }	/* end main() */
 
-update_subwins()
+void update_subwins()
 {
   register int i;
   int (*func)();
@@ -165,14 +176,14 @@ update_subwins()
 /*
  * Simple function to permit refereshing the statically defined basewin
  */
-refresh_screen()
+void refresh_screen()
 {
   touchwin(basewin);
   wrefresh(basewin);
   /* wrefresh(curscr);	*/
 }
 
-help()
+void help()
 {
   fprintf(stderr, "\nUSAGE: %s  <options>  [data-directory]\n", prognm);
 #ifdef NCURSES
@@ -205,7 +216,6 @@ void finish()
  */
 void winresize()
 {
-  extern int debug;
 #ifdef TIOCGSIZE
   static struct ttysize win;
   if (ioctl (0, TIOCGSIZE, &win) == 0)
@@ -237,7 +247,7 @@ void winresize()
 /*+
  * Just restart and create windows all over again.
  */
-winreset()
+void winreset()
 {
   init_curses();
   basewin = (WINDOW *)create_subwins();
@@ -247,13 +257,13 @@ winreset()
 /*
  * Function required by tputs(). Cannot be a macro.
  */
-outchar (c)
+int outchar (c)
   int c;
 {
   return fputc (c, stdout);
 }
 
-dotest(arrdevices, arrvalue, ndevices)
+void dotest(arrdevices, arrvalue, ndevices)
   void          **arrdevices;
   void          *arrvalue;
   int           ndevices;

@@ -14,6 +14,9 @@
 
 /*
  * $Log$
+ * Revision 1.1  2008/04/25 23:31:52  tvroon
+ * Portability fixes by me, PROMPTA/B switch by Robert Lister <robl@linx.net>.
+ *
  * Revision 1.0  2001/07/09 03:33:52  vikas
  * sniptstv for SNIPS v1.0
  *
@@ -30,11 +33,17 @@
 #include <dirent.h>
 #include <sys/stat.h>	/* for fstat() */
 #include <unistd.h>
+#include <string.h>
+#include <curses.h>
 
 #include <sys/param.h>
 
 #include "snips.h"		/* for EVENT structure */
+#include "snips_funcs.h"
+#include "event_utils.h"
+#include "eventlog.h"
 #include "snipstv.h"
+#include "do_filter.h"
 
 #ifndef MAXPATHLEN
 # define MAXPATHLEN 256
@@ -42,7 +51,11 @@
 
 static int prevcritical, curcritical;	/* keep track of total critical */
 
-update_eventwin(win)
+/* function prototypes */
+void Beep();
+int printEvent(WINDOW *win, EVENT *pevt);
+
+int update_eventwin(win)
   WINDOW *win;
 {
   int bytesread, nrows;
@@ -168,7 +181,7 @@ update_eventwin(win)
  * print out the EVENT line using selected 'widescreen' format.
  * Return 1 if printed out,  or 0 if not printed out.
  */
-printEvent(win, pevt)
+int printEvent(win, pevt)
   WINDOW *win;
   EVENT *pevt;
 {
@@ -176,7 +189,6 @@ printEvent(win, pevt)
   char tstr[128];
   extern bool belloff, silent;
   extern int displevel, widescreen;
-  extern char *bolds, *bolde;
   extern struct tm *evtm;
   extern char *devicename;	/* devicename is used in the 'define's */
 
@@ -200,7 +212,7 @@ printEvent(win, pevt)
     devicename = pevt->device.name;
 	
 #ifdef	USE_NCURSES
-  if (has_colors) {
+  if (has_colors()) {
     switch (pevt->severity)
     {
     case E_CRITICAL:
@@ -262,12 +274,12 @@ printEvent(win, pevt)
 	belloff = 0;		/* Force bell on */
     }
 #ifdef USE_NCURSES		    
-    if (!has_colors)
+    if (!has_colors())
 #endif
     wstandout (win);
     waddstr (win, state);
 #ifdef USE_NCURSES
-    if (has_colors)
+    if (has_colors())
        wattroff (win, COLOR_PAIR(4) | A_BOLD);
     else
 #endif
@@ -276,12 +288,12 @@ printEvent(win, pevt)
 
   case E_ERROR:
 #ifdef USE_NCURSES
-    if (!has_colors)
+    if (!has_colors())
 #endif
     wBoldon(win);	/* */
     waddstr(win, state);
 #ifdef USE_NCURSES
-    if (has_colors)
+    if (has_colors())
        wattroff (win, COLOR_PAIR(3) | A_BOLD);
     else
 #endif
@@ -291,7 +303,7 @@ printEvent(win, pevt)
   case E_WARNING:
     waddstr(win, state);
 #ifdef USE_NCURSES
-    if (has_colors)
+    if (has_colors())
        wattroff (win, COLOR_PAIR(2) | A_BOLD);
 #endif
     break;
@@ -300,7 +312,7 @@ printEvent(win, pevt)
   default:
     waddstr(win, state);
 #ifdef USE_NCURSES
-    if (has_colors)
+    if (has_colors())
        wattroff (win, COLOR_PAIR(1));
 #endif
     break;
@@ -314,7 +326,7 @@ printEvent(win, pevt)
  * 'beep' on the terminal.
  */
 
-Beep()
+void Beep()
 {
   extern bool silent;
   extern char *bellstr;

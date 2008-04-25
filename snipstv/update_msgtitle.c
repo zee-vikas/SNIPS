@@ -11,6 +11,9 @@
 
 /*
  * $Log$
+ * Revision 1.1  2008/04/25 23:31:52  tvroon
+ * Portability fixes by me, PROMPTA/B switch by Robert Lister <robl@linx.net>.
+ *
  * Revision 1.0  2001/07/09 03:33:52  vikas
  * sniptstv for SNIPS v1.0
  *
@@ -26,14 +29,14 @@
 
 #include "snips.h"		/* for EVENT severity definitions */
 #include "snipstv.h"		/* includes the curses header files */
+#include "do_filter.h"
 
-update_msgstitle(win)
+void update_msgstitle(win)
   WINDOW *win;
 {
   char *pat;
   extern bool frozen;
   extern int COLS, displevel;
-  extern char *ulines, *ulinee;		/* underline, in snipstv.h */
 
   wmove(win, 0, 0) ;
   if (frozen)                                 /* on first line of win */

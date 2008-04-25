@@ -12,6 +12,9 @@
 
 /*
  * $Log$
+ * Revision 1.3  2008/04/25 23:31:51  tvroon
+ * Portability fixes by me, PROMPTA/B switch by Robert Lister <robl@linx.net>.
+ *
  * Revision 1.2  2001/08/13 03:39:38  vikas
  * Was calling bzero() after filling the struct from get_inet_address()
  * (bug reported by m.vevea@seafloor.com)
@@ -27,6 +30,8 @@
 
 /* Copyright 2001, Netplex Technologies Inc., info@netplex-tech.com */
 
+#include <time.h>
+#include "netmisc.h"
 #include "ntpmon.h"
 
 extern int debug;	/* needed here since not including snips.h */
@@ -36,6 +41,9 @@ extern char *prognm;
 # define NTP_PORT 123
 #endif
 
+/* function prototypes */
+int get_response(int sockfd, int sequence, int timeout);
+
 /*
  * Create a control packet and send it to the ntp deamon.
  * The packet is a ntp_control structure with no data.
@@ -44,7 +52,7 @@ extern char *prognm;
  * This number is the one we are interested in.
  * Returns 255 in case of error, else the stratum of the remote clock (1-16)
  */
-ntpmon(host)
+int ntpmon(host)
   char *host;	/* In dotted decimal addr */
 {
   struct ntp_control qpkt;

@@ -14,19 +14,23 @@
 
 /*
  * $Log$
+ * Revision 1.1  2008/04/25 23:31:51  tvroon
+ * Portability fixes by me, PROMPTA/B switch by Robert Lister <robl@linx.net>.
+ *
  * Revision 1.0  2001/07/11 03:36:41  vikas
  * Initial revision
  *
  */
 
 #include "nsmon.h"
+#include "netmisc.h"
 
 /*
  * return values:
  *	integer (defined in nsmon.h)
  */
 
-nsmon (host, querystr, querytype, timeout, aa_only, debugflag)
+int nsmon (host, querystr, querytype, timeout, aa_only, debugflag)
   char *host;			/* host to be queried */
   char *querystr;		/* dns query string */
   int  querytype;		/* T_SOA, T_A, T_NS (see nameser.h) */
@@ -38,7 +42,6 @@ nsmon (host, querystr, querytype, timeout, aa_only, debugflag)
   char qbuf[BUFSIZ], ansbuf[BUFSIZ];
   struct sockaddr_in *psockaddr;
   HEADER *hp;				/* struct defined in arpa/nameser.h */
-/*  extern struct state _res;		/* defined in resolv.h */
   
   psockaddr = &(_res.nsaddr) ;
   if (get_inet_address(psockaddr, host) < 0)	/* snips library function */
@@ -137,7 +140,8 @@ nsmon (host, querystr, querytype, timeout, aa_only, debugflag)
 
 #ifdef TEST
 
-
+/* This is already provided through netmisc.h */
+#if 0
 get_inet_address(saddr, host)
   struct sockaddr_in *saddr;		/* must be a malloced structure */
   char *host;
@@ -165,6 +169,7 @@ get_inet_address(saddr, host)
   }
   return 1;	/* OK */
 }
+#endif
 
 usage()
 {

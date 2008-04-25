@@ -10,6 +10,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 #include <sys/types.h>
 #include <sys/time.h>
 #include <netinet/in.h>
@@ -64,6 +66,8 @@ struct ntp_control
 #define VARUNITS	"Stratum"	/* Units name */
 #define TIMEOUT 	5		/* Seconds to wait for a reply */
 #define TRIES		3		/* number of retries for udp pkt */
+
+int ntpmon(char *host);   /* In dotted decimal addr */
 
 #endif	/* ntpmon_h */
 

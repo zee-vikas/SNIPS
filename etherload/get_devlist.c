@@ -5,6 +5,9 @@
  */
 /*
  * $Log$
+ * Revision 1.1  2008/04/25 23:31:50  tvroon
+ * Portability fixes by me, PROMPTA/B switch by Robert Lister <robl@linx.net>.
+ *
  * Revision 1.0  2001/07/08 21:47:32  vikas
  * For SNIPS v1.0
  *
@@ -29,6 +32,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include "util.h"
 
 /* Not all systems have IFF_LOOPBACK */
 #ifdef IFF_LOOPBACK

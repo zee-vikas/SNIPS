@@ -6,8 +6,17 @@
  * Update the prompt panel (last line).
  */
 
+/* <robl@linx.net> 2004-11-2004 
+ * - PROMPTA and PROMPTB actually the wrong way round.
+ * We prompt for next screen when there isn't any, and do not
+ * prompt when there is. Reversed the variables.
+*/
+
 /*
  * $Log$
+ * Revision 1.1  2008/04/25 23:31:52  tvroon
+ * Portability fixes by me, PROMPTA/B switch by Robert Lister <robl@linx.net>.
+ *
  * Revision 1.0  2001/07/09 03:33:52  vikas
  * sniptstv for SNIPS v1.0
  *
@@ -24,10 +33,10 @@
 
 #include "snipstv.h"		/* includes the curses header files */
 
-#define PROMPTA "Enter option, 'q' to quit, 'h' for help: "
-#define PROMPTB "Enter option, or any other key for next screen: "
+#define PROMPTA "Enter option, or any other key for next screen: "
+#define PROMPTB "Enter option, 'q' to quit, 'h' for help: "
 
-update_promptwin(win)
+void update_promptwin(win)
   WINDOW *win;
 {
   

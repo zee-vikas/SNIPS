@@ -10,6 +10,9 @@
 
 /*
  * $Log$
+ * Revision 1.3  2008/04/25 23:31:50  tvroon
+ * Portability fixes by me, PROMPTA/B switch by Robert Lister <robl@linx.net>.
+ *
  * Revision 1.2  2002/01/30 05:40:17  vikas
  * Updated calc_status() to handle equal thresholds.
  * Also fixed bug where it was returning the wrong threshold in warning.
@@ -28,6 +31,9 @@
 
 
 #include "snips.h"
+#include "event_utils.h"
+#include "eventlog.h"
+#include <stdlib.h>
 #include <string.h>
 
 /*
@@ -97,13 +103,23 @@ char *event_to_logstr(v)
   else
     sprintf(fmts, "%s [%s]: ", datestr, v->sender);
 
-  sprintf(fmts + strlen(fmts),
-	  "DEVICE %s%s%s %s VAR %s %ld %ld %s LEVEL %s LOGLEVEL %s STATE %s\n",
-	  (*(v->device.subdev))? v->device.subdev, "+" : "", "",
-	  v->device.name, v->device.addr,
-	  v->var.name, v->var.value, v->var.threshold, v->var.units,
-	  severity_txt[v->severity], severity_txt[v->loglevel],
-	  states) ;
+  if (*(v->device.subdev)) {
+	  sprintf(fmts + strlen(fmts),
+		  "DEVICE %s%s%s %s VAR %s %ld %ld %s LEVEL %s LOGLEVEL %s STATE %s\n",
+		  v->device.subdev, "+", 
+		  v->device.name, v->device.addr,
+		  v->var.name, v->var.value, v->var.threshold, v->var.units,
+		  severity_txt[v->severity], severity_txt[v->loglevel],
+		  states) ;
+  } else {
+	  sprintf(fmts + strlen(fmts),
+		  "DEVICE %s%s%s %s VAR %s %ld %ld %s LEVEL %s LOGLEVEL %s STATE %s\n",
+		  "", "",
+		  v->device.name, v->device.addr,
+		  v->var.name, v->var.value, v->var.threshold, v->var.units,
+		  severity_txt[v->severity], severity_txt[v->loglevel],
+		  states) ;
+  }
 
   return(fmts) ;
 }
@@ -111,7 +127,7 @@ char *event_to_logstr(v)
 /*
  * initialize basic fields in the event structure (esp. time)
  */
-init_event(pv)
+int init_event(pv)
   EVENT *pv;
 {
   time_t clock ;			/* Careful, don't use 'long'	*/
@@ -141,6 +157,8 @@ init_event(pv)
   /* pv->id = secs since 2000, = time - 946702800 + increasing serial# */
   /* Should calculate in update_event */
   /* or YYMMDD + (hh * 60 + mm) + increasing number */
+
+  return 0;
 }	/* init_event() */
   
 /*
@@ -211,7 +229,7 @@ int calc_status(val, warnt, errt, critt, crit_is_hi, pthres, pmaxseverity)
  * Finally, if this is a new change in severity, then the event is
  * logged at the 'worst' of current severity and last log-severity.
  */
-update_event(pv, status, value, thres, maxsev)
+int update_event(pv, status, value, thres, maxsev)
   EVENT *pv;
   int status;			/* device status */
   u_long value;			/* event value */
@@ -264,12 +282,13 @@ update_event(pv, status, value, thres, maxsev)
 	      pv->var.name, pv->var.value, pv->severity, pv->sender);
 #endif
 
+  return 0;
 }	/* update_event() */
 
 /*
  * EVENT utilities
  */
-read_event(fd, pv)
+int read_event(fd, pv)
   int fd;
   EVENT *pv;
 {
@@ -282,7 +301,7 @@ read_event(fd, pv)
   return (readbytes);
 }
 
-read_n_events(fd, pv, n)
+int read_n_events(fd, pv, n)
   int fd, n;
   EVENT *pv;	/* array of events */
 {
@@ -294,7 +313,7 @@ read_n_events(fd, pv, n)
   return (readbytes);
 }
 
-write_event(fd, pv)
+int write_event(fd, pv)
   int fd;
   EVENT *pv;
 {
@@ -305,7 +324,7 @@ write_event(fd, pv)
   return (writebytes);
 }
 
-write_n_events(fd, pv, n)
+int write_n_events(fd, pv, n)
   int fd, n;
   EVENT *pv;	/* array of events */
 {
@@ -320,7 +339,7 @@ write_n_events(fd, pv, n)
 /*
  * rewind and write event (used to overwrite after update)
  */
-rewrite_event(fd, pv)
+int rewrite_event(fd, pv)
   int fd;
   EVENT *pv;
 {
@@ -328,7 +347,7 @@ rewrite_event(fd, pv)
   return (write_event(fd, pv));
 }
 
-rewrite_n_events(fd, pv, n)
+int rewrite_n_events(fd, pv, n)
   int fd, n;
   EVENT *pv;		/* array of events */
 {

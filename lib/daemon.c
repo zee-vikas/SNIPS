@@ -17,6 +17,9 @@
 
 /*
  * $Log$
+ * Revision 1.1  2008/04/25 23:31:50  tvroon
+ * Portability fixes by me, PROMPTA/B switch by Robert Lister <robl@linx.net>.
+ *
  * Revision 1.0  2001/07/08 22:19:38  vikas
  * Lib routines for SNIPS
  *
@@ -31,19 +34,18 @@
 # include <config.h>
 #endif
 
-#include <sys/types.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <fcntl.h>
 #include <signal.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 #include <errno.h>
 
 #ifdef SIGCHLD	/* in BSD machines, define a signal handler for the child */
 void sig_child()
 {
-  int pid;
 # ifndef NOWAITPID
   int status;
   while (waitpid(-1, &status, WNOHANG) > 0)	/* this is the default */
@@ -152,7 +154,6 @@ int Daemon(pidfile)
 int fork2()
 {
   pid_t pid;
-  int rc;
   int status;
 
   if (!(pid = fork()))

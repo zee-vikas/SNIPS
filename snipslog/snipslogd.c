@@ -15,6 +15,9 @@
 
 /*
  * $Log$
+ * Revision 1.3  2008/04/25 23:31:52  tvroon
+ * Portability fixes by me, PROMPTA/B switch by Robert Lister <robl@linx.net>.
+ *
  * Revision 1.2  2002/01/28 23:39:59  vikas
  * Added 'HUP' word in the info message.
  *
@@ -35,6 +38,11 @@
 #include "snipslogd.h"
 #undef _MAIN_
 
+#include "snips_funcs.h"
+#include "event_utils.h"
+#include "eventlog.h"
+#include "daemon.h"
+
 typedef struct node_s {
   char		*sender;	/* for comparing EVENT.sender */
   char		*path;		/* Filename in char format */
@@ -50,9 +58,16 @@ static char	*configfile, *errfile ;
 static int	sighupflag=0, alarmflag=0 ;
 static unsigned long  permithosts[50] ;		/* list of hosts */
 
-void	sighuphandler(), sigalrmhandler();
+/* function prototypes */
+int authenticate_host(struct sockaddr_in *peer);
+void fatal(char *msg);
+void readconfig();
+int readevent(int fd);
+void serve();
+void sighuphandler(), sigalrmhandler();
+void warning_int(char *format, int num);
 
-main(ac, av)
+int main(ac, av)
   int ac;
   char **av;
 {
@@ -112,7 +127,7 @@ main(ac, av)
   {
     int errfd;
 
-    Daemon();
+    Daemon(NULL);
     mypid = getpid();
     /* close and open the stderr right after the Daemon call */
     close(2);
@@ -145,6 +160,7 @@ main(ac, av)
   serve();
 
   /*NOTREACHED*/
+  return(0);
 }
 
 /*
@@ -153,7 +169,7 @@ main(ac, av)
  * in and logs it into the appropriate file.  It never returns,
  * but dies on error.
  */
-serve()
+void serve()
 {
   int			inetfd, nfds,  sockbuffsize, optlen ;
   struct sockaddr_in	sin;
@@ -241,7 +257,7 @@ serve()
  * based on the contents of loglist.  Readconfig() must have been
  * called first.  Dies upon error.
  */
-readevent(fd)
+int readevent(fd)
   int fd;			/* socket file desc */
 {
   register char *r, *s;
@@ -348,6 +364,7 @@ readevent(fd)
 	    
       }	/*  end: if (stream closed, try reopening it) */
 
+    return(0);
 }	/* end readevent() */
 
 
@@ -360,7 +377,7 @@ readevent(fd)
  *
  * Return 1 if OKAY, 0 if not
  */
-authenticate_host(peer)
+int authenticate_host(peer)
   struct sockaddr_in *peer ;	/* typecast from sockaddr to sockaddr_in  */
 {
   struct sockaddr_in  s ;
@@ -438,7 +455,7 @@ node  *insert(sender, path)
  *
  * Dies upon failure.
  */
-readconfig()
+void readconfig()
 {
   char	line[1024], *progstr, *sevstr, *filestr, *p, *q;
   FILE	*config;
@@ -531,7 +548,7 @@ readconfig()
  * PID, if available.  Prints out the error message corresponding to
  * errno, if errno is set.  Exits with return value 1.
  */
-fatal(msg)
+void fatal(msg)
   char *msg;
 {
   if (prognm)
@@ -555,7 +572,7 @@ fatal(msg)
  * Assumes that 'format' is a valid fprintf format string that requires
  * only one argument, the integer 'num'.
  */
-warning_int(format, num)
+void warning_int(format, num)
   char *format;
   int num;
 {

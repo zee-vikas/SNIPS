@@ -7,6 +7,9 @@
 
 /*
  * $Log$
+ * Revision 1.1  2008/04/25 23:31:52  tvroon
+ * Portability fixes by me, PROMPTA/B switch by Robert Lister <robl@linx.net>.
+ *
  * Revision 1.0  2001/07/09 03:33:52  vikas
  * sniptstv for SNIPS v1.0
  *
@@ -24,8 +27,15 @@
 
 #include "snips.h"
 #include "snipstv.h"
+#include "main.h"
+#include "update_msgtitle.h"
+#include "help_page.h"
+#include "do_filter.h"
+ 
+/* function prototypes */
+int poll_input();
 
-parse_user_input()
+int parse_user_input()
 {
   char response;		/* user's character input */
   extern int widescreen, displevel;
@@ -141,7 +151,7 @@ parse_user_input()
 # define PAUSE 15		/* time to wait for user input */
 #endif
 
-poll_input ()
+int poll_input ()
 {
   extern bool frozen ;			/* Defined in netconsole.h */
   struct timeval tm;

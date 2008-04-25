@@ -21,6 +21,9 @@ static char *RCSid = "$Header$" ;
 
 /*
  * $Log$
+ * Revision 1.2  2008/04/25 23:31:50  tvroon
+ * Portability fixes by me, PROMPTA/B switch by Robert Lister <robl@linx.net>.
+ *
  * Revision 1.1  2001/08/17 03:27:00  vikas
  * Deleted curses.h since it is not needed in this file.
  *
@@ -34,10 +37,13 @@ static char *RCSid = "$Header$" ;
 #include <sys/time.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "etherload.h"
 #include "externs.h"
+#include "snips_funcs.h"
+#include "util.h"
 
 /*
  * finish - clean up and exit.
@@ -124,7 +130,7 @@ printstats()
  *
  */
 
-dostats(p)
+int dostats(p)
   struct _if_stats *p;		/* pointer to _if_stats structure */
 {
   if (totaltime == 0)

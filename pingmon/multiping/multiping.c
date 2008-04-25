@@ -19,6 +19,9 @@
 
 /*
  * $Log$
+ * Revision 2.4  2008/04/25 23:31:51  tvroon
+ * Portability fixes by me, PROMPTA/B switch by Robert Lister <robl@linx.net>.
+ *
  * Revision 2.3  2001/08/25 16:35:37  vikas
  * Now recieves packets during the interpacket delay in mpinger (earlier
  * only processed one incoming packet). Bug and patch by cbell@junknet.com
@@ -121,7 +124,21 @@ void            wrapup(), stopit(), finish();
 int		packlen ;
 u_char		*packet;
 
-main(argc, argv)
+/* function prototypes */
+void fill(char *bp, char *patp);
+void pr_pack(char *buf, int cc, struct sockaddr_in *from);
+void real_pinger(int which);
+void tvsub(register struct timeval *out, register struct timeval *in);
+void pr_iph(struct ip *ip);
+void setup_sockaddr(char *addr);
+void pr_retip(struct ip *ip);
+void mpinger();
+void pr_icmph(struct icmp *icp);
+void usage();
+int recv_packets(int rsock, struct timeval *ptimeout);
+u_short in_cksum(u_short *addr, int len);
+
+int main(argc, argv)
   int             argc;
   char          **argv;
 {
@@ -369,6 +386,7 @@ main(argc, argv)
   }	/* end: while() */
 
   finish();
+  return(0);
 
 }	/* end: main() */
 
@@ -410,7 +428,7 @@ stopit()
  * we do another wait() to force a pause for the INTERPKTGAP time.
  */
 
-mpinger()
+void mpinger()
 {
   int	i;
   struct timeval interpktdelay;
@@ -440,7 +458,7 @@ mpinger()
  * portion are used to hold a UNIX "timeval" struct in VAX byte-order, to
  * compute the round-trip time.
  */
-real_pinger(which)
+void real_pinger(which)
   int             which;       /* index into dest[] array, tells which */
                                /* site is being pinged */
 {
@@ -489,7 +507,7 @@ real_pinger(which)
  * timeout, -1 on some fatal read error from socket.
  */
 
-recv_packets(rsock, ptimeout)
+int recv_packets(rsock, ptimeout)
   int rsock;			/* socket file descriptor */
   struct timeval *ptimeout;	/* how long to wait */
 {
@@ -579,7 +597,7 @@ recv_packets(rsock, ptimeout)
  * this program to be run without having intermingled output (or
  * statistics!).
  */
-pr_pack(buf, cc, from)
+void pr_pack(buf, cc, from)
   char           *buf;
   int             cc;
   struct sockaddr_in *from;
@@ -592,7 +610,7 @@ pr_pack(buf, cc, from)
   static char     old_rr[MAX_IPOPTLEN];
   struct ip      *ip;
   struct timeval  tv, *tp;
-  long            triptime;
+  long            triptime = 0;
   int             hlen, dupflag;
 
   /* record time when we received the echo reply */
@@ -638,7 +656,6 @@ pr_pack(buf, cc, from)
     }
 
     dst = dest[wherefrom];
-    /*    icp->icmp_seq;		/* ??? */
     ++dst->nreceived;
 
     /* figure out round trip time, check min/max */
@@ -799,7 +816,7 @@ pr_pack(buf, cc, from)
  * in_cksum -- Checksum routine for Internet Protocol family headers (C
  * Version)
  */
-in_cksum(addr, len)
+u_short in_cksum(addr, len)
   u_short        *addr;
   int             len;
 {
@@ -834,7 +851,7 @@ in_cksum(addr, len)
  * tvsub -- Subtract 2 timeval structs:  out = out - in.  Out is assumed to
  * be >= in.
  */
-tvsub(out, in)
+void tvsub(out, in)
   register struct timeval *out, *in;
 {
   if ((out->tv_usec -= in->tv_usec) < 0) {
@@ -975,7 +992,7 @@ static char    *ttab[] = {
 /*
  * pr_icmph -- Print a descriptive string about an ICMP header.
  */
-pr_icmph(icp)
+void pr_icmph(icp)
   struct icmp    *icp;
 {
   switch (icp->icmp_type) {
@@ -1041,7 +1058,7 @@ pr_icmph(icp)
       printf("Redirect, Bad Code: %d", icp->icmp_code);
       break;
     }
-    printf("(New addr: 0x%08lx)\n", icp->icmp_gwaddr.s_addr);
+    printf("(New addr: 0x%08lx)\n", (long unsigned int)icp->icmp_gwaddr.s_addr);
 #ifndef icmp_data
     pr_retip(&icp->icmp_ip);
 #else
@@ -1114,7 +1131,7 @@ pr_icmph(icp)
 /*
  * pr_iph -- Print an IP header with options.
  */
-pr_iph(ip)
+void pr_iph(ip)
   struct ip      *ip;
 {
   int             hlen;
@@ -1162,7 +1179,7 @@ pr_addr(l)
 /*
  * pr_retip -- Dump some info on a returned (via ICMP) IP packet.
  */
-pr_retip(ip)
+void pr_retip(ip)
   struct ip      *ip;
 {
   int             hlen;
@@ -1180,7 +1197,7 @@ pr_retip(ip)
 		  (*cp * 256 + *(cp + 1)), (*(cp + 2) * 256 + *(cp + 3)));
 }
 
-fill(bp, patp)
+void fill(bp, patp)
   char           *bp, *patp;
 {
   register int    ii, jj, kk;
@@ -1237,7 +1254,7 @@ destrec *dest_malloc()
  * like '128.112.120.1' and creates an entry for that host in the
  * dest[] array.
  */
-setup_sockaddr(addr)
+void setup_sockaddr(addr)
   char *addr;
 {
   destrec *dst;
@@ -1282,9 +1299,9 @@ setup_sockaddr(addr)
 	      MAXREMOTE);
       exit (1);
   }
-}	/* setup_scokaddr() */
+}	/* setup_sockaddr() */
 
-usage()
+void usage()
 {
   fprintf(stderr, "usage: %s [-Rdfnqrtv] [-c count] [-i wait] [-l preload]\n",
 	  prognm);

@@ -15,6 +15,9 @@
 
 /*
  * $Log$
+ * Revision 1.1  2008/04/25 23:31:53  tvroon
+ * Portability fixes by me, PROMPTA/B switch by Robert Lister <robl@linx.net>.
+ *
  * Revision 1.0  2001/07/09 04:04:18  vikas
  * For SNIPS v1.0
  *
@@ -48,8 +51,13 @@
 #include "config.h"
 #endif /* HAVE_CONFIG_H */
 
+#include "eventlog.h"
+#include "snips_specific.h"
+
 #include <stdio.h>
+#include <stdlib.h>
 #include <ctype.h>
+#include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>

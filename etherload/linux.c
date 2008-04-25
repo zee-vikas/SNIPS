@@ -30,6 +30,9 @@ static char *RCSid = "$Header$";
 
 /*
  * $Log$
+ * Revision 1.1  2008/04/25 23:31:50  tvroon
+ * Portability fixes by me, PROMPTA/B switch by Robert Lister <robl@linx.net>.
+ *
  * Revision 1.0  2001/07/08 21:47:32  vikas
  * For SNIPS v1.0
  *
@@ -38,6 +41,8 @@ static char *RCSid = "$Header$";
 
 #include <sys/types.h>
 #include <stdio.h>
+#include <string.h>
+#include <unistd.h>
 #include <errno.h>
 #ifdef __GLIBC__			/* linux 2.0 gcc lib has changed */
 # include <sys/socket.h>
@@ -47,7 +52,6 @@ static char *RCSid = "$Header$";
 #endif
 #include <sys/ioctl.h>
 #include <sys/time.h>
-/* #include <sys/file.h>  /* */
 #ifdef __GLIBC__
 # include <netinet/in.h>
 # include <net/if.h>
@@ -78,8 +82,7 @@ char *os_devices[] = {
 int setup_device(device)
   char *device;
 {
-  int n, s;
-  int i;
+  int s, i;
   struct timeval timeout;
   struct sockaddr sa;
     

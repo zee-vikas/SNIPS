@@ -8,14 +8,21 @@
 
 #define _MAIN_
 #include "snips.h"
+#include "snips_funcs.h"
 #undef _MAIN_
 
+#include "event_utils.h"
 #include	<stdio.h>
+#include	<stdlib.h>
+#include	<string.h>
 #include 	<sys/file.h>
 
 static int altmode = 0;		/* alternate display mode */
 
-main(ac, av)
+/* function prototypes */
+int display_snips_datafile(char *file);
+
+int main(ac, av)
   int ac ;
   char **av ;
 {
@@ -36,10 +43,11 @@ main(ac, av)
     }
     display_snips_datafile(*av) ;
   }
+  return (0);
 }
 
 
-display_snips_datafile(file)
+int display_snips_datafile(file)
   char *file;
 {
   EVENT v;
@@ -79,5 +87,6 @@ display_snips_datafile(file)
   if (bufsize != 0)			/* Error */
     fprintf (stderr, "Invalid data in %s\n", file);
 
+  return (0);
 }	/* end: display_snips_datafile */
 

@@ -7,6 +7,9 @@
 
 /*
  * $Log$
+ * Revision 1.1  2008/04/25 23:31:50  tvroon
+ * Portability fixes by me, PROMPTA/B switch by Robert Lister <robl@linx.net>.
+ *
  * Revision 1.0  2001/07/11 03:30:32  vikas
  * Initial revision
  *
@@ -14,6 +17,7 @@
 
 #include <sys/types.h>
 #include <stdio.h>
+#include <string.h>
 #include <errno.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -25,7 +29,7 @@
  * hostnames as well...
  * Return -1 on error, 1 if okay.
  */
-get_inet_address(saddr, host)
+int get_inet_address(saddr, host)
   struct sockaddr_in *saddr;		/* must be a malloced structure */
   char *host;
 {

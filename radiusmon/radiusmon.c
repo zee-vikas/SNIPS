@@ -12,6 +12,9 @@
 
 /*
  * $Log$
+ * Revision 1.2  2008/04/25 23:31:52  tvroon
+ * Portability fixes by me, PROMPTA/B switch by Robert Lister <robl@linx.net>.
+ *
  * Revision 1.1  2001/08/05 09:13:42  vikas
  * Added support for using NAS_PORT_TYPE. Needed by some radius servers.
  *
@@ -23,6 +26,7 @@
 /* Copyright 2001, Netplex Technologies, Inc. info@netplex-tech.com */
 
 #include "radiusmon.h"
+#include "md5-local.h"
 
 #ifdef TEST
 int debug;
@@ -33,6 +37,7 @@ extern int debug;	/* Defined in main.c */
 
 static char *get_response(), *make_radiuspkt();
 static int  check_response(), get_inet_address();
+void hash_password(char *pwd, int pwdlen, char *result, char *secret, char *vector);
 
 /*+ radiusmon()
  * 	create socket
@@ -41,7 +46,7 @@ static int  check_response(), get_inet_address();
  * 	recieve response
  * 	check response
  */
-radiusmon(host, port, secret, user, pass, timeout, retries, porttype)
+int radiusmon(host, port, secret, user, pass, timeout, retries, porttype)
   char *host;	/* In dotted decimal addr */
   int  port;
   char *secret, *user, *pass;
@@ -368,7 +373,7 @@ dump_radpkt(radpkt)
 /* encrypt the password by XORing with the md5 hash of the "secret+vector"
  * combined string.
  */
-hash_password(pwd, pwdlen, result, secret, vector)
+void hash_password(pwd, pwdlen, result, secret, vector)
   char *pwd;
   int  pwdlen;
   char *result;	/* hashed data  returned in this */

@@ -23,6 +23,9 @@
 
 /*
  * $Log$
+ * Revision 1.1  2008/04/25 23:31:52  tvroon
+ * Portability fixes by me, PROMPTA/B switch by Robert Lister <robl@linx.net>.
+ *
  * Revision 1.0  2001/07/08 22:48:28  vikas
  * For SNIPS
  *
@@ -30,23 +33,30 @@
 
 /* Copyright 2001, Netplex Technologies Inc. */
 
-
 /*  */
 #ifndef lint
 static char rcsid[] = "$Id$" ;
 #endif
 
 #include "portmon.h"
+#include "netmisc.h"
+#include <stdlib.h>
 
 extern char	*skip_spaces() ;		/* in libsnips */
 extern char	*Strcasestr();			/* like strstr() */
+
+/* function prototypes */
+int NBconnect(int s, char *host, int port);
+int send_hoststring(int sock, struct _harray *h);
+int process_host(int sock, struct _harray *h);
+int check_resp(char *readstr, struct _response *resarr);
 
 /*
  * This function opens a bunch of non-blocking connects to the remote
  * devices and calls process_host() as each socket becomes ready.
  * Handles multiple devices in parallel.
  */
-checkports(hv, nhosts, rtimeout)
+int checkports(hv, nhosts, rtimeout)
   struct _harray  *hv[];	/* list of device structures */
   int nhosts;
   int rtimeout;			/* read timeout in secs */
@@ -215,7 +225,7 @@ checkports(hv, nhosts, rtimeout)
 /*+
  * Send a string to a host
  */
-send_hoststring(sock, h)
+int send_hoststring(sock, h)
   int sock;		/* connected socket */
   struct _harray *h;
 {
@@ -276,22 +286,16 @@ send_hoststring(sock, h)
  * 	Checks the port for the structure _harray passed to it.
  * Return value is '1' if finished processing, '0' if yet to finish.
  */
-process_host(sock, h)
+int process_host(sock, h)
   int sock;		/* connected socket */
   struct _harray *h;
 {
   int i, n;
-  int sflags;
   int buflen, maxsev;
   register char *r, *s;
 
   if (debug)
     fprintf(stderr, " (debug) process_host('%s:%d')\n", h->hname, h->port);
-
-  /* if socket is non-blocking, undo this flag */
-/*  sflags = fcntl(sock, F_GETFL, 0);		/*  */
-/*  fcntl(sock, F_SETFL, sflags ^ O_NONBLOCK);	/* set blocking */
-/*  fcntl(sock, F_SETFL, sflags | O_NONBLOCK);	/* set nonblocking */
 
   if (h->responselist == NULL)		/* no responses to check */
     if (h->wptr == NULL || *(h->wptr) == '\0')	/* done sending */
@@ -400,7 +404,7 @@ process_host(sock, h)
  * FUNCTION:
  * 	Check the list of responses using Strcasestr()
  */
-check_resp(readstr, resarr)
+int check_resp(readstr, resarr)
   char *readstr;
   struct _response  *resarr ;
 {
@@ -433,7 +437,7 @@ check_resp(readstr, resarr)
 /*
  * Start non-blocking connect to remote host
  */
-NBconnect(s, host, port)
+int NBconnect(s, host, port)
   int s;	/* socket */
   char *host;
   int port;

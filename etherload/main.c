@@ -33,6 +33,9 @@ static char *RCSid = "$Id$";
 
 /*
  * $Log$
+ * Revision 1.2  2008/04/25 23:31:50  tvroon
+ * Portability fixes by me, PROMPTA/B switch by Robert Lister <robl@linx.net>.
+ *
  * Revision 1.1  2001/08/01 01:08:06  vikas
  * Was not setting the name of the snips config file correctly.
  *
@@ -45,6 +48,9 @@ static char *RCSid = "$Id$";
 /*  */
 
 #include "os.h"
+#include "get_devlist.h"
+#include "util.h"
+#include "snips_specific.h"
 
 #include <sys/types.h>
 #include <sys/param.h>
@@ -55,6 +61,7 @@ static char *RCSid = "$Id$";
 #include <signal.h>
 #include <errno.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -103,7 +110,7 @@ fpe_warn()
 }
 #endif /* ultrix */
 
-main(argc, argv)
+int main(argc, argv)
   int argc;
   char **argv;
 {

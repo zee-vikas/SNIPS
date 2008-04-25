@@ -11,6 +11,9 @@
 
 /*
  * $Log$
+ * Revision 1.4  2008/04/25 23:31:51  tvroon
+ * Portability fixes by me, PROMPTA/B switch by Robert Lister <robl@linx.net>.
+ *
  * Revision 1.3  2001/08/22 01:58:17  vikas
  * Now recognizes CONFIGDIR keyword also (crawford.6@sociology.osu.edu)
  *
@@ -29,8 +32,11 @@
 
 
 #include "snips.h"
+#include "snips_funcs.h"
+#include "eventlog.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <signal.h>				/* signal numbers	*/
 #include <sys/file.h>
@@ -44,11 +50,6 @@ static char	*dataFile;		/* Names of the data file	*/
 static char	*snips_loghost;
 static void (*old_sigusr1_handler)();	/* store old sigusr1 handler */
 
-char	*get_datadir(),  *get_etcdir();
-char	*set_datafile(), *set_configfile();
-char	*get_snips_loghost();
-void	snips_done(), hup_handler(), usr1_handler();	/* for signals */
-
 /*
  * Called upon startup. Calls 'standalone()', and sets up the interrupt
  * signal handlers.
@@ -57,7 +58,7 @@ void	snips_done(), hup_handler(), usr1_handler();	/* for signals */
  *	prognm  (set to value of program name or sender)
  *	extnm   (set to any desired -x extension)
  */
-snips_startup()
+int snips_startup()
 {
   char *s ;
 
@@ -98,13 +99,14 @@ snips_startup()
   old_sigusr1_handler = signal (SIGUSR1, usr1_handler);	/* toggles debug */
 #endif
 
+  return 0;
 }	/* end snips_startup() */
 
 /*
  * Read global snips config file. This function will grow over time as
  * we add more and more config information in this file.
  */
-read_global_config()
+int read_global_config()
 {
   int lineno = 0;
   char buf[BUFSIZ], fname[256], *cfile;
@@ -212,7 +214,7 @@ void hup_handler()
  * function which can be called by an external program to restore the
  * previous signal handler
  */
-snips_restore_sigusr1()
+void snips_restore_sigusr1()
 {
 #ifdef SVR4
   bsdsignal (SIGUSR1, old_sigusr1_handler);
@@ -252,7 +254,7 @@ snips_restore_sigusr1()
  *  we use fopen() to check for a file's existence.
  */
 
-standalone(pidfile)
+int standalone(pidfile)
   char *pidfile;		/* path of the pid file */
 {
   FILE *pidf ;
@@ -354,7 +356,7 @@ void snips_done()
  * Print a standard help blurb
  */
 
-snips_help()
+int snips_help()
 {
   fprintf(stderr, "\tSNIPS Version %s\n", (char *)snips_version);
   fprintf(stderr, "\nUSAGE: %s [option...]\n", prognm);
@@ -369,6 +371,7 @@ snips_help()
   Sending a SIGUSR1 toggles debugging, SIGHUP reloads config file\n");
   fprintf(stderr, " Default config file = %s\n", get_configfile());
   fprintf(stderr, " Default data   file = %s\n", get_datafile());
+  return 0;
 }
 
 /*+
@@ -381,7 +384,7 @@ snips_help()
  * function to read the config file in the parameters (else there will
  * be no way to detect which function to call on getting a reload).
  */
-snips_reload(newreadconfig)
+int snips_reload(newreadconfig)
   int (*newreadconfig)();	/* can be NULL to use default function */
 {
   int rc;
@@ -452,7 +455,7 @@ snips_reload(newreadconfig)
  * common data and copies over the existing severity, status etc.
  * from the old datafile. Used when config file reloaded.
  */
-copy_events_datafile(ofile, nfile)
+int copy_events_datafile(ofile, nfile)
   char *ofile, *nfile;		/* old and new datafiles */
 {
   int n, matched = 0;
@@ -531,7 +534,7 @@ copy_events_datafile(ofile, nfile)
  * If so, set reload flag. Can be a bit of a problem if using RCS, or
  * the config file is in the middle of edits.
  */
-check_configfile_age()
+int check_configfile_age()
 {
   static time_t config_mtime;		/* config file modified */
   struct stat stat_buf;
@@ -692,7 +695,7 @@ char *set_datafile(f)
  * the file:
  *	\000  \0177  'SNIPS'  DATA_VERSION
  */
-write_dataversion(fd)
+int write_dataversion(fd)
   int fd;
 {
 #if defined(DATA_VERSION) && defined(MAGIC_STRING)
@@ -723,7 +726,7 @@ write_dataversion(fd)
  * After calling this function, the 'fd' file descriptor is past the
  * first record which is the data version.
  */
-read_dataversion(fd)
+int read_dataversion(fd)
   int fd;
 {
 #if defined(DATA_VERSION) && defined(MAGIC_STRING)
@@ -762,7 +765,7 @@ read_dataversion(fd)
 /*
  * Extract the data version from an event structure
  */
-extract_dataversion(pv)
+int extract_dataversion(pv)
   EVENT *pv;
 {
   int ver = 0;
@@ -778,7 +781,7 @@ extract_dataversion(pv)
 }
 
 /* Just return the dataversion defined in the include file */
-my_dataversion()
+int my_dataversion()
 {
 #ifdef DATA_VERSION
   return (DATA_VERSION);
@@ -791,7 +794,7 @@ my_dataversion()
  * do an open() followed by a read or write dataversion depending on if file
  * created (and we are at start of file).
  */
-open_datafile(filename, flags)
+int open_datafile(filename, flags)
   char *filename;
   int flags;		/* normal open() flags */
 {
@@ -812,7 +815,7 @@ open_datafile(filename, flags)
   return (fd);
 }
 
-close_datafile(fd)
+int close_datafile(fd)
   int fd;
 {
   return (close(fd));

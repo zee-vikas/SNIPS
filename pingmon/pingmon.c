@@ -16,6 +16,9 @@
 
 /*
  * $Log$
+ * Revision 1.1  2008/04/25 23:31:51  tvroon
+ * Portability fixes by me, PROMPTA/B switch by Robert Lister <robl@linx.net>.
+ *
  * Revision 1.0  2001/07/08 22:56:07  vikas
  * For SNIPS
  *
@@ -30,12 +33,19 @@
 #include "pingmon.h"
 
 #include <sys/file.h>
+#include <string.h>
 
 static int *rvalues  = NULL;
 static char pingcmd[BUFSIZ * 4];	/* the ping command used */
 static char line[BUFSIZ];		/* output of command */
 
 char *strstr();
+
+/* function prototypes */
+int multipingmon(char **pdevices);
+int rpcpingmon(char **pdevices);
+int osipingmon(char **pdevices);
+int ippingmon(char **pdevices);
 
 /*
  * Given an array of devices to monitorm, Return's array of integer values
@@ -81,7 +91,7 @@ int *pingmon (devices)
     return (rvalues);
 }		/* pingmon() */
 
-rpcpingmon(pdevices)
+int rpcpingmon(pdevices)
   char **pdevices;
 {
   int  value = 0;		/* assume down */
@@ -103,9 +113,10 @@ rpcpingmon(pdevices)
   if (pclose(pcmd) < 0)		      /* close the pipe */
     perror("rpcpingmon pclose()");
   rvalues[0] = value;
+  return(0);
 }
 
-multipingmon(pdevices)
+int multipingmon(pdevices)
   char **pdevices;
 {
   int i, j, ndevices;
@@ -139,7 +150,6 @@ multipingmon(pdevices)
   sprintf(pingcmd, "%s -qtn -c %d -s %d ", ping, npackets, pktsize);
   for (ndevices = 0; pdevices[ndevices] && *(pdevices[ndevices]); ++ndevices)
     strcat(strcat(pingcmd, " "), pdevices[ndevices]);
-  /* strcat(pingcmd, " | sed '1,/^-----/d'");	/* avoid using sed */
 
   if (debug > 1)
     fprintf(stderr, "pingcmd = %s\n", pingcmd);
@@ -184,12 +194,13 @@ multipingmon(pdevices)
   if (pclose(pcmd) < 0)		      /* close the pipe */
     perror("multipingmon pclose()");
 
+  return(0);
 }	/* multipingmon() */
 
 /*
  * Using the system /bin/ping program
  */
-ippingmon(pdevices)
+int ippingmon(pdevices)
   char **pdevices;
 {
   int sent, recv = 0;
@@ -255,12 +266,13 @@ ippingmon(pdevices)
 
   rvalues[0] = recv;
   rvalues[1] = (int)avgrtt;	/* drop any decimal part */
+  return(0);
 }	/* ippingmon() */
 
 /*
  * same as ippingmon since osiping's output is the same.
  */
-osipingmon(pdevices)
+int osipingmon(pdevices)
   char **pdevices;
 {
   int sent, recv = 0;
@@ -306,5 +318,6 @@ osipingmon(pdevices)
 
   rvalues[0] = recv;
   rvalues[1] = (int)avgrtt;	/* drop any decimal part */
+  return(0);
 }	/* ippingmon() */
 

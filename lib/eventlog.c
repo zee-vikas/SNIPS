@@ -8,6 +8,9 @@
 
 /*+
  * $Log$
+ * Revision 1.2  2008/04/25 23:31:50  tvroon
+ * Portability fixes by me, PROMPTA/B switch by Robert Lister <robl@linx.net>.
+ *
  * Revision 1.1  2001/07/28 01:47:16  vikas
  * Now converts host endian to network byte order (marya@st.jip.co.jp)
  *
@@ -22,7 +25,10 @@
  static char rcsid[] = "$Id$" ;
 #endif
 
+#include "netmisc.h"
 #include "snipslogd.h"
+#include "snips_funcs.h"
+#include "eventlog.h"
 #include <sys/time.h>
 
 /*
@@ -42,8 +48,6 @@ static time_t	closetime;
 int openeventlog()
 {
   char *s ;
-  char linebuf[256];
-  FILE *fp;
   struct sockaddr_in	sin;
   struct servent	*sp;
 
@@ -102,7 +106,7 @@ int openeventlog()
  */
 #define RETRY_REOPEN	1*60	/* seconds before trying to reopen logfd */
 
-eventlog(vin)
+int eventlog(vin)
   EVENT *vin;			/* in host endian format */
 {
   int bytesleft, retval;
@@ -165,7 +169,7 @@ int closeeventlog()
 /*
  * Convert EVENT values from host to network byte order
  */
-htonevent(f,t)
+void htonevent(f,t)
   EVENT *f;
   EVENT *t;
 {
@@ -182,7 +186,7 @@ htonevent(f,t)
 /*
  * Convert EVENT values from network to host byte order
  */
-ntohevent(f,t)
+void ntohevent(f,t)
   EVENT *f;
   EVENT *t;
 {

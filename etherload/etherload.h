@@ -17,6 +17,9 @@
 
 /*
  * $Log$
+ * Revision 1.1  2008/04/25 23:31:50  tvroon
+ * Portability fixes by me, PROMPTA/B switch by Robert Lister <robl@linx.net>.
+ *
  * Revision 1.0  2001/07/08 21:47:32  vikas
  * For SNIPS v1.0
  *
@@ -145,4 +148,9 @@ typedef long		fd_mask;
 # define FD_ZERO(p)	(void) bzero((char *)(p), sizeof(*(p)))
 #endif /* NFDBITS */
 
+/* function prototypes */
+int getpkt(int fd, int ifc_type, char **ppkt, int *plen, int *pwirelen, int *pdrops);
+int get_devtype(char *device, int  fd);
+int setup_device(char *device);
+int etherload(int secs);
 

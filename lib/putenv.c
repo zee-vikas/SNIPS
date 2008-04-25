@@ -98,7 +98,7 @@ register char *s1, *s2;
 }
 
 #else
-static null_function()
+static void null_function()
 {
   /* prevent some compilers from complaining about an empty file */
 }

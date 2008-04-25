@@ -20,6 +20,9 @@
 
 /*
  * $Log$
+ * Revision 1.1  2008/04/25 23:31:52  tvroon
+ * Portability fixes by me, PROMPTA/B switch by Robert Lister <robl@linx.net>.
+ *
  * Revision 1.0  2001/07/08 22:48:28  vikas
  * For SNIPS
  *
@@ -37,6 +40,11 @@ static char rcsid[] = "$Id$" ;
 
 #define _MAIN_
 #include "portmon.h"
+#include "portmon-local.h"
+#include "netmisc.h"
+#include "snips_funcs.h"
+#include "snips_main.h"
+#include "event_utils.h"
 #undef _MAIN_
 
 static int	rtimeout = RTIMEOUT;		/* select timeout in seconds */
@@ -44,13 +52,18 @@ static int	simulconnects = MAXSIMULCONNECTS;
 struct _harray	*hostlist;			/* global ptr to list */
 extern char	*skip_spaces(), *Strdup();	/* in libsnips */
 
-main(ac, av)
+/* function prototypes */
+void set_functions();
+void free_hostlist(struct _harray *phlist);
+
+int main(ac, av)
   int ac;
   char **av;
 {
   hostlist = NULL;
   set_functions();
   snips_main(ac, av);
+  return(0);
 }
   
 /*+
@@ -64,7 +77,7 @@ main(ac, av)
  */
 #define NEXTTOK  (char *)skip_spaces(strtok(NULL, " \t"))
 
-readconfig()
+int readconfig()
 {
   int mxsever, i, fdout,  lineno = 0;
   char *j1;				/* temp string pointers */
@@ -328,7 +341,6 @@ readconfig()
     {
       /* We NEED a newline at the end of the send strings. http requires 2 */
       raw2newline(j1);
-      /* if (*(j1 + strlen(j1) - 1) != '\n')	/* */
       strcat(j1, "\r\n");
       h->writebuf = (char *)Strdup(j1) ;
 
@@ -370,7 +382,7 @@ readconfig()
 /*
  * Make one complete pass over all the devices
  */
-poll_devices()
+int poll_devices()
 {
   int i, fdout;
   char *datafile;
@@ -423,7 +435,7 @@ poll_devices()
   return (1);
 }	/* end:  poll_devices()  */
 
-help()
+void help()
 {
   snips_help();
 }
@@ -431,7 +443,7 @@ help()
 /*
  *
  */
-free_hostlist(phlist)
+void free_hostlist(phlist)
   struct _harray *phlist;
 {
   struct _harray *curptr, *nextptr;
@@ -462,7 +474,7 @@ free_hostlist(phlist)
 /*
  * Since we are calling the snips_main(), override the lib functions
  */
-set_functions()
+void set_functions()
 {
   int help(), readconfig(), poll_devices();
 

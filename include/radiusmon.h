@@ -5,8 +5,10 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 #include <sys/types.h>
-#include <sys/time.h>
+#include <time.h>
 
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -81,6 +83,8 @@ typedef struct pw_auth_hdr {
 # define RADIUS_PORT	1645	/* destination port */
 #endif
 #define SOURCE_PORT	5678	/* dummy originating port number */
+
+int radiusmon(char *host,int port, char *secret, char *user, char *pass, int timeout, int retries, int porttype);
 
 #endif	/* radiusmon */
 

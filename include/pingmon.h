@@ -63,4 +63,6 @@ EXTERN int  batchsize;
 EXTERN char *ping;
 #undef EXTERN
 
+int *pingmon (char *devices);
+
 #endif	/* ! __pingmon_h */

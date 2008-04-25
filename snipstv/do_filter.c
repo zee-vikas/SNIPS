@@ -38,6 +38,9 @@ CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 /*
  * $Log$
+ * Revision 1.1  2008/04/25 23:31:52  tvroon
+ * Portability fixes by me, PROMPTA/B switch by Robert Lister <robl@linx.net>.
+ *
  * Revision 1.0  2001/07/09 03:33:52  vikas
  * sniptstv for SNIPS v1.0
  *
@@ -59,6 +62,10 @@ CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 static char *(compiled[MAXARGS][MAXARGS]);	/* Compiled pattern */
 static char *pattern;		/* entered filter string */
 
+/* function prototypes */
+void get_filter(WINDOW *w, char pat[], int patlen);
+void compile_pattern(char *pattern);
+
 /*
  * Just return the pattern to an external program.
  */
@@ -73,7 +80,7 @@ char *get_filterpattern()
  * Compiles that pattern for later use by filter().
  */
 
-read_filter()
+void read_filter()
 {
   WINDOW *npatwin;				/* Where to get pattern from */
 
@@ -136,7 +143,7 @@ read_filter()
  *
  * Places the newly entered string into pat[] upon returning.
  */
-get_filter(w, pat, patlen)
+void get_filter(w, pat, patlen)
   WINDOW *w;
   char pat[];
   int patlen;
@@ -243,7 +250,7 @@ get_filter(w, pat, patlen)
  */
 
 
-compile_pattern(pattern)
+void compile_pattern(pattern)
   char *pattern;
 {
   static char text[MAXTEXTLEN];		/* Cooked form of pattern */
@@ -340,7 +347,7 @@ compile_pattern(pattern)
  * matches are filter condition and we may return TRUE immediately.
  */
 
-eventfilter(pevt)
+int eventfilter(pevt)
   EVENT *pevt;
 {
   char line[1024];
@@ -380,12 +387,6 @@ eventfilter(pevt)
   for (p=line; *p != '\0'; p++)		/* Make everything lowercase */
     *p = tolower(*p);
 
-/*  if (debug > 2)
-/*  {
-/*    wprintw(MsgPanel.win, "\nComparing %s", line);
-/*    wrefresh(MsgPanel.win);
-/*  }
-/* */
   /* Loop through the rows one by one... */
   for (row=0; compiled[row][0] != NULL; row++)
   {

@@ -12,6 +12,9 @@
 
 /*
  * $Log$
+ * Revision 1.1  2008/04/25 23:31:52  tvroon
+ * Portability fixes by me, PROMPTA/B switch by Robert Lister <robl@linx.net>.
+ *
  * Revision 1.0  2001/07/09 03:33:52  vikas
  * sniptstv for SNIPS v1.0
  *
@@ -24,15 +27,14 @@
 #endif
 
 #include <sys/types.h>
-#include <sys/time.h>
+#include <time.h>
 
 #include "snipstv.h"		/* includes the curses header files */
 
-update_title(win)
+void update_title(win)
   WINDOW *win;
 {
   extern int COLS;		/* defined in curses.h */
-  extern char *bolds, *bolde, *ulines, *ulinee;
   time_t t = time((time_t *)NULL);
 
   mvwprintw(win, 0, 0, "%3.2d", pageno);

@@ -13,6 +13,9 @@
 
 /*
  * $Log$
+ * Revision 1.1  2008/04/25 23:31:52  tvroon
+ * Portability fixes by me, PROMPTA/B switch by Robert Lister <robl@linx.net>.
+ *
  * Revision 1.0  2001/07/09 03:33:52  vikas
  * sniptstv for SNIPS v1.0
  *
@@ -26,6 +29,8 @@
 
 #include <sys/types.h>
 #include <stdio.h>
+#include <string.h>
+#include <unistd.h>
 
 #include  "snipstv.h"
 /*
@@ -37,9 +42,9 @@
 
 static char *ok_terminals[]  = {"vt100", "vt200", "xterm", "sun", NULL};
 static char *bad_terminals[] = {"ethernet", "network", "dialup", NULL};
-#ifdef NCURSES
-/* char ttytype[256];		/* ttytype is defined in curses.h */
-#endif
+
+/* function prototypes */
+int check_terminal(char *ptermtype);
 
 /*+
  * Extract the TERM variable and make sure it is valid. Uses the 'environ'
@@ -47,7 +52,7 @@ static char *bad_terminals[] = {"ethernet", "network", "dialup", NULL};
  *
  */
 
-init_environ(environ)
+int init_environ(environ)
   char *environ[];
 {
     char termtype[64];
@@ -83,6 +88,7 @@ init_environ(environ)
     if (!bellstr)
       bellstr = "\007" ;
 
+    return(0);
 }	/* init_environ() */
 
 
@@ -91,7 +97,7 @@ init_environ(environ)
  * 'good_term' and 'bad_terminals'. Sets the value of the terminal type.
  * Return 1 if ok, -1 if error.
  */
-check_terminal(ptermtype)
+int check_terminal(ptermtype)
   char *ptermtype ;
 {
   register int i ;
@@ -153,11 +159,9 @@ check_terminal(ptermtype)
  * Just go into curses mode.
  */
 
-init_curses()
+void init_curses()
 {
   extern int COLS;			/* defined in curses.h */
-  /* extern char *ttytype;			/* defined in curses.h */
-  /* sprintf(ttytype, "%s", getenv("TERM"));	/* needed ? */
   if (in_curses)
   {
     endwin();
@@ -196,7 +200,7 @@ init_curses()
 }	/* init_curses */
 
 
-welcome_screen()
+void welcome_screen()
 {
   WINDOW *wscr;
   char *s;
@@ -206,7 +210,6 @@ welcome_screen()
   s = "SNIPS TextView\n";
   mvwprintw(wscr, (int)(LINES/2 - 1), (int)(COLS/2) - (int)(strlen(s)/2), s);
   wstandend(wscr);
-/*  s = "http://www.netplex-tech.com";	/* */
   s = "        Initializing...";
   mvwaddstr(wscr, (int)(LINES/2 + 1), (int)(COLS/2) - (int)(strlen(s)/2), s);
   wmove(wscr, 0, COLS-1);

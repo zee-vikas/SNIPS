@@ -209,5 +209,7 @@ EXTERN u_long	(*test_func)();		/* ptr to actual test function */
 /* some function definitions */
 char *get_configfile(),  *get_datafile(), *get_pidfile();
 char *Strdup();
+time_t get_date (char *p, time_t *now);
+
 
 #endif	/* _snips_h  */

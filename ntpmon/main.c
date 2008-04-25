@@ -20,6 +20,9 @@
 
 /*
  * $Log$
+ * Revision 1.1  2008/04/25 23:31:51  tvroon
+ * Portability fixes by me, PROMPTA/B switch by Robert Lister <robl@linx.net>.
+ *
  * Revision 1.0  2001/07/08 22:44:25  vikas
  * For SNIPS
  *
@@ -32,8 +35,16 @@
 
 #define _MAIN_
 #include "snips.h"
+#include "snips_funcs.h"
+#include "snips_main.h"
+#include "netmisc.h"
 #include "ntpmon.h"
+#include "event_utils.h"
 #undef _MAIN_
+
+/* function prototypes */
+void set_functions();
+void free_device_list(struct device_info **pslist);
 
 /* We keep a linked list of all the devices that we poll and store the
  * various thresholds in this linked list.
@@ -50,6 +61,7 @@ int main(ac, av)
 {
   set_functions();
   snips_main(ac, av);
+  return(0);
 }	/* end main() */
 
 /*
@@ -194,7 +206,7 @@ int readconfig()
  * every device and writes the output
  */
 
-poll_devices()
+int poll_devices()
 {
   EVENT v;			    	/* described in snips.h		*/
   int status, fdout, bufsize;
@@ -251,7 +263,7 @@ poll_devices()
 
 }	/* end of:  poll_devices		*/
 
-help()
+void help()
 {
   snips_help();
   fprintf(stderr, "\
@@ -260,7 +272,7 @@ help()
   worse) below the configured levels.\n\n");
 }
 
-free_device_list(pslist)
+void free_device_list(pslist)
   struct device_info **pslist;
 {
   struct device_info *curptr, *nextptr;
@@ -277,7 +289,7 @@ free_device_list(pslist)
 /*
  * Override the library functions since we are using snips_main()
  */
-set_functions()
+void set_functions()
 {
   int help(), readconfig(), poll_devices();
 

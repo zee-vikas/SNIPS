@@ -16,6 +16,9 @@ static char *RCSid = "$Header$" ;
 
 /*
  * $Log$
+ * Revision 1.2  2008/04/25 23:31:50  tvroon
+ * Portability fixes by me, PROMPTA/B switch by Robert Lister <robl@linx.net>.
+ *
  * Revision 1.1  2001/08/01 01:08:06  vikas
  * Was not setting the name of the snips config file correctly.
  *
@@ -25,16 +28,24 @@ static char *RCSid = "$Header$" ;
  *
  */
 
-
+#include <stdlib.h>
 #include <string.h>
 
 #define _MAIN_
 #include "snips.h"
+#include "snips_funcs.h"
+#include "snips_main.h"
+#include "event_utils.h"
 #undef _MAIN_
 #include "etherload.h"
 #include "externs.h"		/* defines  extern bw, pps */
+#include "util.h"
 
 static char	*sender;
+
+/* function prototypes */
+void set_functions();
+int readconfig();
 
 /*
  * Note that E_CRITICAL = 1 & E_INFO = 4. We only need 3 spaces in the
@@ -54,7 +65,7 @@ struct _snips_if			/* store thresholds for each var */
 /*
  * Called upon startup to do device specific stuff
  */
-snips_begin(cf_file)
+void snips_begin(cf_file)
   char *cf_file;
 {
   if ((sender = (char *)strrchr (prognm , '/')) == NULL)
@@ -85,7 +96,7 @@ snips_begin(cf_file)
  *
  */
 
-readconfig()
+int readconfig()
 {
   register int i;
   int ndevs = -1;		/* reset every time function is called */
@@ -273,16 +284,13 @@ readconfig()
  * unavailable interfaces from the output data file.
  */
 
-snips_prep()
+int snips_prep()
 {
   register int i, j;
   int nvar, nif, fdout;
   extern int	ninterfaces;		/* number of valid interfaces found */
-  char myhostname[256];
   char *datafile;
   EVENT v;                            	/* Defined in SNIPS.H */
-  struct tm *loctime ;
-  time_t locclock ;                   	/* Careful, don't use 'long'  */
 
   datafile = get_datafile();
   if ( (fdout = open_datafile(datafile, O_RDWR|O_CREAT|O_TRUNC)) < 0)
@@ -432,7 +440,7 @@ snips_write_etherload_stats()
 /*
  * Set the customizable functions for the SNIPS library.
  */
-set_functions()
+void set_functions()
 {
   set_readconfig_function(readconfig);
 }

@@ -22,6 +22,9 @@
 
 /*
  * $Log$
+ * Revision 1.1  2008/04/25 23:31:51  tvroon
+ * Portability fixes by me, PROMPTA/B switch by Robert Lister <robl@linx.net>.
+ *
  * Revision 1.0  2001/07/14 03:17:59  vikas
  * Initial revision
  *
@@ -30,6 +33,10 @@
 /* Copyright 2001 Netplex Technologies, Inc. */
 
 #include "snips.h"
+#include "event_utils.h"
+#include "eventlog.h"
+#include "snips_funcs.h"
+#include "snips_main.h"
 
 #include <stdio.h>
 #include <signal.h>
@@ -44,7 +51,7 @@
  * which expects test_func() to be set.
  *
  */
-snips_main(ac, av)
+void snips_main(ac, av)
   int ac;
   char **av;
 {
@@ -180,7 +187,7 @@ snips_main(ac, av)
  *	readconfig_func = (int (*)())readconfig;
  */
 /* null functions which show error messages */
-set_help_function(f)
+void set_help_function(f)
   int (*f)();		/* ptr to function */
 {
   int snips_help();
@@ -190,7 +197,7 @@ set_help_function(f)
   else
     help_func = (int (*)())snips_help;
 }
-set_readconfig_function(f)
+void set_readconfig_function(f)
   int (*f)();
 {
   int null_readconfig();
@@ -204,7 +211,7 @@ set_readconfig_function(f)
     fprintf(stderr, "(debug) set_readconfig_function to ptr addr %lx\n",
 	    (u_long)(readconfig_func));
 }
-set_polldevices_function(f)
+void set_polldevices_function(f)
   int (*f)();
 {
   int generic_polldevices();
@@ -219,7 +226,7 @@ set_polldevices_function(f)
 	    (u_long)(polldevices_func));
 }
 
-set_test_function(f)
+void set_test_function(f)
   u_long (*f)();
 {
   u_long null_test();
@@ -233,12 +240,13 @@ set_test_function(f)
 	    (u_long)(test_func));
 }
 
-null_readconfig()
+int null_readconfig()
 {
   fprintf(stderr,
 	  "%s- FATAL, Set readconfig_func() before calling snips_main() and recompile\n",
 	  prognm);
   snips_done();
+  return(0);
 }
 
 unsigned long
@@ -250,6 +258,7 @@ null_test(fd, cfile)
 	  "%s- FATAL, Set test_func() if you dont have a custom poll_devices() function and recompile.\n",
 	  prognm);
   snips_done();
+  return(0);
 }
 
 /*
@@ -258,7 +267,7 @@ null_test(fd, cfile)
  * should have filled that field. Cannot handle multiple threshold levels
  * (since no clean way to pass it the 3 threshold levels).
  */
-generic_polldevices()
+int generic_polldevices()
 {
   int status, readbytes, fdout, maxseverity;
   unsigned long value;

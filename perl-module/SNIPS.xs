@@ -6,6 +6,9 @@
  *	Vikas Aggarwal (vikas@navya_.com)  June 2000
  *
  * $Log$
+ * Revision 1.2  2008/04/25 23:31:51  tvroon
+ * Portability fixes by me, PROMPTA/B switch by Robert Lister <robl@linx.net>.
+ *
  * Revision 1.1  2001/08/01 23:19:52  vikas
  * Minor change, sv_value should not be static.
  *
@@ -47,6 +50,10 @@ extern "C" {
 #define _MAIN_
 #include "snips.h"
 #undef _MAIN_
+
+#include "snips_funcs.h"
+#include "event_utils.h"
+#include "eventlog.h"
 
 /* Older perl define's na instead of PL_na */
 #ifndef PL_na

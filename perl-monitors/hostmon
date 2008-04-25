@@ -82,7 +82,7 @@ use vars qw ( $snipsroot $debug $TMPDATADIR $OLD_AGE $EXPIRE_AGE
 	    );
 
 BEGIN {
-  $snipsroot = "/usr/local/snips"  unless $snipsroot;	# SET_THIS
+  $snipsroot =  "/usr/local/snips"   unless $snipsroot;	# SET_THIS
   push (@INC, "$snipsroot/etc"); push (@INC, "$snipsroot/bin");
   require "snipsperl.conf" ;		# local customizations
 }
@@ -93,7 +93,7 @@ use SNIPS;
 ## Variables customization #  overrides values in the snipslib.pl library
 ############################
 $TMPDATADIR = "/tmp/hostmon_data"; # All host data files under here.
-$debug = 0;
+# $debug = 1;
     # The sleeptime needs to be larger than the collector's so that
     # it gets updated fresh data each pass.
 $s_pollinterval=(60*5);		# default sleep time in seconds
@@ -266,13 +266,13 @@ sub do_devicedatafiles {
       ## for old snmpmon-client datafiles
       if ( /^\s*(\d+)(.*\s+COMMENT\s+(\S.*)?)?$/ ) { # Value & Comment
 	($curvalue, $comment) = ($1, $3);
-      }
-      ## for snmpmon/hostmon-collector  datafiles
-      elsif ( /^\s*(\S+)\s+(\d+)\s+(\S+)(\s+(\S.*)?)?\s*$/ ) {
-	($curvar, $curvalue, $curunit, $comment) = ($1, $2, $3, $5);
-	$comment = "" if (!defined ($comment));
-      }
-      else {
+        }
+        ## for snmpmon/hostmon-collector  datafiles
+        elsif ( /^\s*(\S+)\s+(\d+)\s+(\S+)(\s+(\S.*)?)?\s*$/ ) {
+        ($curvar, $curvalue, $curunit, $comment) = ($1, $2, substr($3,0,7), $5);
+        $comment = "" if (!defined ($comment));
+        }
+        else {
 	$debug && print STDERR "Error: unknown input data line syntax- $_\n";
 	next;
       }
@@ -393,7 +393,22 @@ sub dopoll {
     $timestamp{$item} = 0 if (! defined($timestamp{$item}) );
     my $age = $curtime - $timestamp{$item};
     # print STDERR "Age for $item is $age secs\n";
-    if ($age >= $EXPIRE_AGE) { rewrite_event($datafd, $nullevent); next; }
+
+    # Previous code used alter_event to blank fields in the record for
+    # this event.  This code uses the NODIPLAY flag in the state field
+    # of the event instead.
+    if ($age >= $EXPIRE_AGE) {
+      if (! defined ($oldage{$item}) || $oldage{$item} < 2) {
+      my %event = unpack_event($event);
+      $event{state} = $event{state} | $n_NODISPLAY;
+      $event = pack_event(%event);
+      $oldage{$item} = 2;
+      }
+      my ($status,$value,$thres,$maxseverity) = split(/\t/, $curstat{$item});
+      update_event($event, 0, $value, $thres, $maxseverity);# escalate severity
+      rewrite_event($datafd, $event);
+      next;
+    } # age > $EXPIRE_AGE
     if ($age >= $OLD_AGE) {
       if (! defined ($oldage{$item})) {
 	my %event = unpack_event($event);
@@ -409,6 +424,9 @@ sub dopoll {
     if (defined $oldage{$item}) {
       my %event = unpack_event($event);
       $event{state} = $event{state} & (~$n_OLDDATA);
+      if ($oldage{$item} == 2) {
+        $event{state} = $event{state} & (~$n_NODISPLAY);
+      }
       $event = pack_event(%event);
       undef $oldage{$item};
     }

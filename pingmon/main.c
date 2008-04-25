@@ -15,6 +15,9 @@
 
 /*
  * $Log$
+ * Revision 1.1  2008/04/25 23:31:51  tvroon
+ * Portability fixes by me, PROMPTA/B switch by Robert Lister <robl@linx.net>.
+ *
  * Revision 1.0  2001/07/08 22:56:07  vikas
  * For SNIPS
  *
@@ -28,8 +31,15 @@
 
 #define _MAIN_
 #include "snips.h"
+#include "snips_funcs.h"
+#include "snips_main.h"
 #include "pingmon.h"
+#include "netmisc.h"
+#include "event_utils.h"
 #undef _MAIN_
+
+#include <stdlib.h>
+#include <string.h>
 
 /* We keep a linked list of all the devices that we poll and store the
  * various thresholds in this linked list.
@@ -42,7 +52,12 @@ static struct device_info {
 
 extern char *strcat();
 
-main(ac, av)
+/* function prototypes */
+void set_functions();
+void free_device_list(struct device_info **pslist);
+void help();
+
+int main(ac, av)
   int ac;
   char **av;
 {
@@ -52,6 +67,7 @@ main(ac, av)
 
   set_functions();
   snips_main(ac, av);
+  return(0);
 
 }	/* end main() */
 
@@ -140,8 +156,7 @@ int readconfig()
 
   while(fgets(record, BUFSIZ, pconfig) != NULL) 
   {
-    register i;
-    int rc;					/* return code	*/
+    register int i;
     int pkt_wthres, pkt_ethres, pkt_cthres;	/* thres per device */
     int rtt_wthres, rtt_ethres, rtt_cthres;	/* thres per device */
     char *line;
@@ -353,7 +368,7 @@ int readconfig()
  * inserted for measuring RTT.
  */
 
-poll_devices()
+int poll_devices()
 {
   int buflen, fdout,  finish = 0;
   int *pvalues;			/* array of return values */
@@ -473,7 +488,7 @@ poll_devices()
 
 }	/* end of:  poll_devices		*/
 
-help()
+void help()
 {
   snips_help();
   fprintf(stderr, "\
@@ -482,7 +497,7 @@ help()
   lost\n\n");
 }
 
-free_device_list(pslist)
+void free_device_list(pslist)
   struct device_info **pslist;
 {
   struct device_info *curptr, *nextptr;
@@ -500,7 +515,7 @@ free_device_list(pslist)
 /*
  * override the library functions since we are calling snips_main()
  */
-set_functions()
+void set_functions()
 {
   int help(), readconfig(), poll_devices();
 

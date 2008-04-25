@@ -27,6 +27,9 @@
 
 /*
  * $Log$
+ * Revision 1.1  2008/04/25 23:31:50  tvroon
+ * Portability fixes by me, PROMPTA/B switch by Robert Lister <robl@linx.net>.
+ *
  * Revision 1.0  2001/07/08 21:47:32  vikas
  * For SNIPS v1.0
  *
@@ -53,13 +56,16 @@
 #include "etherload.h"
 #include "externs.h"
 
+/* function prototypes */
+int pkt_process(char *pkt, int pktlen, int itype);
+
 /*
  * etherload - main packet reading loop.
  */
-etherload(secs)
+int etherload(secs)
   int secs;				/* scan seconds */
 {
-  register i, cc;
+  register int i, cc;
   void set_breakscan() ;		/* On getting a sigalarm */
   fd_set saved_readfds, readfds;
   int ndrops ;				/* number of packets dropped */
@@ -208,7 +214,7 @@ set_breakscan()
  * header, and replaces them with an ethernet packet header. So
  * process fddi and ethernet packets as ether packets.
  */
-pkt_process(pkt, pktlen, itype)
+int pkt_process(pkt, pktlen, itype)
   char *pkt ;
 int pktlen;
 int itype;		/* interface type: NDT_FDDI, NDT_EN10MB, etc. */
@@ -228,7 +234,7 @@ int itype;		/* interface type: NDT_FDDI, NDT_EN10MB, etc. */
   /*
    * So... we just do this instead for both ethernet and FDDI.
    */
-  /*    pkt_process_ether(pkt, pktlen);	/* */
+  /*    pkt_process_ether(pkt, pktlen);	*/
 
 #endif
   return (1);

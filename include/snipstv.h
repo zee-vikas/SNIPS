@@ -10,11 +10,10 @@
 /* Curses specific */
 #include <ctype.h>
 
-#if defined(USE_NCURSES) || defined(HAVE_NCURSES_H)
-# include <ncurses.h>
-#else
-# include <curses.h>
-#endif
+#include <ncurses.h>
+#include <curses.h>
+#include <term.h>
+#include <stdlib.h>
 
 /*
  * For 4.2 curses.

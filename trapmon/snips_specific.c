@@ -10,6 +10,9 @@
 
 /*
  * $Log$
+ * Revision 1.1  2008/04/25 23:31:52  tvroon
+ * Portability fixes by me, PROMPTA/B switch by Robert Lister <robl@linx.net>.
+ *
  * Revision 1.0  2001/07/09 04:04:18  vikas
  * For SNIPS v1.0
  *
@@ -19,8 +22,12 @@
 
 #define _MAIN_
 #include	"snips.h"
+#include	"snips_funcs.h"
+#include	"event_utils.h"
+#include	"eventlog.h"
 #undef _MAIN_
 #include	"trapmon.h"
+#include	"trapmon-local.h"
 #include	"snmp/snmp.h"		/* part of CMU snmp code */
 
 static char	*datafile, *configfile;		/* snips specific */
@@ -28,7 +35,7 @@ static char	*datafile, *configfile;		/* snips specific */
 /*
  * Call snips startup, and open various files.
  */
-init_snips()
+int init_snips()
 {
   int fd;
 
@@ -63,7 +70,7 @@ init_snips()
  * Appends a new event to the end of the datafile. For an enterprise specific
  * trap, it adds the 'specific_type' of the trap for identification.
  */
-add_snips_event(addr, name, pdu)
+int add_snips_event(addr, name, pdu)
     char *addr;					/* Address of trap sender */
     char *name;					/* Name of trap sender */
     struct snmp_pdu *pdu;			/* trap PDU */
@@ -139,6 +146,7 @@ add_snips_event(addr, name, pdu)
     if (debug)
 	fprintf(stderr, "Added: devicenm=%s deviceaddr=%s varnm=%s severity=%d expire_at=%d\n",
 		name, addr, v.var.name, v.severity, expire_at[numtraps - 1]);
+    return(0);
 }
 
 
@@ -216,9 +224,10 @@ int expire_snips_events()
     fprintf(stderr, "Done.\n");
     fflush(stderr);
   }
+  return(0);
 }	/* expire_snips_events() */
 
-help()
+void help()
 {
   (void) Usage();
 }

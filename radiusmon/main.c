@@ -16,6 +16,9 @@
 
 /*
  * $Log$
+ * Revision 1.2  2008/04/25 23:31:52  tvroon
+ * Portability fixes by me, PROMPTA/B switch by Robert Lister <robl@linx.net>.
+ *
  * Revision 1.1  2001/08/05 09:13:42  vikas
  * Added support for using NAS_PORT_TYPE. Needed by some radius servers.
  *
@@ -25,11 +28,16 @@
  */ 
 
 #include <stdio.h>
+#include <string.h>
 #include <fcntl.h>
 
 #define _MAIN_
 #include "snips.h"
+#include "snips_funcs.h"
+#include "snips_main.h"
 #include "radiusmon.h"
+#include "netmisc.h"
+#include "event_utils.h"
 #undef _MAIN_
 
 /* We keep a linked list of all the devices that we poll and store the
@@ -47,12 +55,19 @@ struct device_info
   struct device_info *next;
 }  *device_info_list = NULL;	
 
+/* function prototypes */
+void set_functions();
+int readconfig();
+void free_device_list(struct device_info **si_list);
+
+
 int main(argc, argv)
   int argc;
   char **argv;
 {
   set_functions();
   snips_main(argc, argv);
+  return(0);
 }
 
 
@@ -63,7 +78,7 @@ int main(argc, argv)
  *   POLLINTERVAL  <time in seconds>
  *   hostname addr port secret username password [retry] [ntries] [port_type]
  */
-readconfig()
+int readconfig()
 {
   int fdout;
   char *configfile, *datafile;
@@ -225,12 +240,12 @@ dotest(hostname, hostaddr)
 
 }	/* dotest() */
 
-help()
+void help()
 {
   snips_help();
 }
 
-free_device_list(si_list)
+void free_device_list(si_list)
   struct device_info **si_list;
 {
   struct device_info *curptr, *nextptr;
@@ -244,13 +259,12 @@ free_device_list(si_list)
   *si_list = NULL;
 }	/* end free_device_list() */
 
-set_functions()
+void set_functions()
 {
   int help(), readconfig();
   u_long dotest();
 
   set_help_function(help);
   set_readconfig_function(readconfig);
-  /* set_polldevices_function(poll_devices);	/* use generic poll_devices*/
   set_test_function(dotest);
 }

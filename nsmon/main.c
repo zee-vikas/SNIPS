@@ -11,6 +11,9 @@
 
 /*
  * $Log$
+ * Revision 1.1  2008/04/25 23:31:51  tvroon
+ * Portability fixes by me, PROMPTA/B switch by Robert Lister <robl@linx.net>.
+ *
  * Revision 1.0  2001/07/08 22:38:19  vikas
  * For SNIPS
  *
@@ -22,12 +25,19 @@
  static char rcsid[] = "$RCSfile$ $Revision$ $Date$" ;
 #endif
 
-#define _MAIN_				/* for global variables */
+#define _MAIN_				/* for 
+global variables */
 #include "snips.h"			/*	common structures	*/
+#include "snips_funcs.h"
+#include "snips_main.h"
 #include "nsmon.h"			/* program specific defines	*/
+#include "nsmon-local.h"
+#include "netmisc.h"			/* get_inet_address */
+#include "event_utils.h"
 #undef _MAIN_
 
 #include <string.h>			/* For strcat() definitions	*/
+#include <stdlib.h>
 #include <sys/file.h>
 #include <signal.h>			/* For signal numbers		*/
 
@@ -47,19 +57,24 @@ struct device_info
 struct device_info *device_info_list = NULL;	/* linked list */
 static int	maxseverity = E_CRITICAL ; 	/* Max severity of nsmon */
 
-main (ac, av)
+/* function prototypes */
+void set_functions();
+void free_device_list(struct device_info **si_list);
+
+int main (ac, av)
   int ac;
   char **av;
 {
   set_functions();
   snips_main(ac, av);
+  return(0);
 }
     
 /*+ 
  * FUNCTION:
  * 	Brief usage
  */
-help ()
+int help ()
 {
   snips_help();
   fprintf(stderr, "This program sends queries to nameservers to verify\n");
@@ -72,7 +87,7 @@ help ()
  * readconfig()
  */
 
-readconfig()
+int readconfig()
 {
   int auth_wanted;			/* Set to 1 if want auth answer */
   int fdout;
@@ -255,7 +270,7 @@ readconfig()
 #define REACHED_EOF 1
 #define READ_ERROR 2
 
-poll_devices()
+int poll_devices()
 {
   EVENT v;			    	/* described in snips.h	*/
   int status, fdout, bufsize;
@@ -332,7 +347,7 @@ poll_devices()
  * domain name, take care to free up only once
  */
 
-free_device_list(si_list)
+void free_device_list(si_list)
   struct device_info **si_list;
 {
   struct device_info *curptr, *nextptr;
@@ -359,7 +374,7 @@ free_device_list(si_list)
 /*
  * set default functions for calling snips_main().
  */
-set_functions()
+void set_functions()
 {
   int help(), readconfig(), poll_devices();
 

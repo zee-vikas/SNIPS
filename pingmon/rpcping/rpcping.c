@@ -50,6 +50,9 @@
 
 /*
  * $Log$
+ * Revision 1.1  2008/04/25 23:31:51  tvroon
+ * Portability fixes by me, PROMPTA/B switch by Robert Lister <robl@linx.net>.
+ *
  * Revision 1.0  2001/07/11 03:41:05  vikas
  * Initial revision
  *
@@ -58,6 +61,7 @@
 
 #include <stdio.h>
 #include <signal.h>
+#include <unistd.h>
 #include <rpc/rpc.h>
 #include <rpc/pmap_prot.h>
 #include <netdb.h>
@@ -73,11 +77,11 @@
 #endif
 
 static struct timeval tv;
-static timed_out = 0;
+static int timed_out = 0;
 
 #define DEFAULT_TIMEO 15
 
-main(argc,argv)
+int main(argc,argv)
      char **argv;
 {
     int sock = RPC_ANYSOCK;

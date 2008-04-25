@@ -21,6 +21,9 @@
 
 /*
  * $Log$
+ * Revision 1.1  2008/04/25 23:31:52  tvroon
+ * Portability fixes by me, PROMPTA/B switch by Robert Lister <robl@linx.net>.
+ *
  * Revision 1.0  2001/07/09 04:00:25  vikas
  * thruput monitor for SNIPS v1.0
  *
@@ -31,13 +34,18 @@
 #endif
 
 #include <string.h>			/* For strcat() definitions	*/
+#include <stdlib.h>			/* For strtol() definitions     */
 #include <sys/file.h>
 #include <signal.h>			/* For signal numbers		*/
 #include <arpa/nameser.h>
 
 #define _MAIN_
 #include "snips.h"			/*	common structures	*/
+#include "snips_funcs.h"
+#include "snips_main.h"
 #include "tpmon.h"			/* program specific defines	*/
+#include "netmisc.h"
+#include "event_utils.h"
 #undef _MAIN_
 /*
  * We dont want the severity to escalate to CRITICAL since thruput might
@@ -45,20 +53,23 @@
  */
 static int maxseverity = E_WARNING ; /* Max severity of events from tpmon */
 
+/* function prototypes */
+void set_functions();
 
-main (ac, av)
+int main (ac, av)
      int ac;
      char **av;
 {
   set_functions();
   snips_main(ac, av);
+  return(0);
 }
     
 /*+ 
 ** FUNCTION:
 ** 	Brief usage
 **/
-help ()
+int help ()
 {
   snips_help();
   fprintf(stderr, "\tThis program tests the throughput to devices by connecting\n");
@@ -71,7 +82,7 @@ help ()
  *    All devices are set to UNINIT status.
  */
 
-readconfig()
+int readconfig()
 {
   int fdout ;
   char record[BUFSIZ], *sender;
@@ -202,13 +213,12 @@ dotest(hostname, hostaddr)
   return (tp /1000L);		/* convert bits to Kbits */
 }
 
-set_functions()
+void set_functions()
 {
   int help(), readconfig(), poll_devices();
   long dotest();
 
   set_help_function(help);
   set_readconfig_function(readconfig);
-  /* set_polldevices_function(poll_devices);	/* */
   set_test_function(dotest);
 }

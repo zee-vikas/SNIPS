@@ -11,6 +11,9 @@
 
 /*
  * $Log$
+ * Revision 1.1  2008/04/25 23:31:52  tvroon
+ * Portability fixes by me, PROMPTA/B switch by Robert Lister <robl@linx.net>.
+ *
  * Revision 1.0  2001/07/09 03:33:52  vikas
  * sniptstv for SNIPS v1.0
  *
@@ -24,6 +27,7 @@
 
 #include <sys/types.h>
 #include <stdio.h>
+#include <string.h>
 #include <dirent.h>
 #include <sys/stat.h>	/* for fstat() */
 #include <unistd.h>
@@ -36,11 +40,9 @@
 # define MAXPATHLEN 256
 #endif
 
-static int startcycle;
-static int warnbeep;
 extern int debug;		/* in snips.h, not included here */
 
-update_msgwin(win)
+int update_msgwin(win)
   WINDOW *win;
 {
   int nrows;
@@ -51,7 +53,6 @@ update_msgwin(win)
   extern char  *msgsdir;		/* defined in snipstv.h */
   extern bool frozen, silent;
 
-  /* wmove(win, 0, 0);		/* to beginning of window */
 #ifdef __NetBSD__
   nrows = getmaxy(win);
 #else
