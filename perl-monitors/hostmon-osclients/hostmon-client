@@ -17,6 +17,14 @@
 #
 #
 # See COPYRIGHT file for full details.
+
+###
+# CONTAINS LINX HACK for monitoring NTP peers. <robl@linx.net>
+# define "@ntphosts" and add it in. Add 'ntppeerstat' to @monitorlist
+# to call it.
+###
+
+
 ##
 #
 ## Checks the following:
@@ -31,7 +39,8 @@
 #	Disk space =	'df'
 #	Network Interface =	'netstat' -m/-s/-i/
 #	Mail queue = 	'sendmail -bp' or 'qmail-qread'
-#	
+#	NTP Peer State = 'ntpq -p'
+#
 ##
 ## Output of this file
 ##
@@ -75,8 +84,8 @@
 ##
 use strict;
 use vars qw ( $SNIPS_LOGHOST $SENDMAIL $HOSTMON_SERVICE $HOSTMON_PORT $PSCMD
-	      $debug $sleeptime $dirname $pidfile $datafile $tmpfile
-	      $childpid $osfile @monitorlist @permithosts
+	      $debug $sleeptime $dirname $pidfile $datafile $tmpfile $NTPQ
+	      $childpid $osfile @monitorlist @permithosts @ntphosts $peer
 	    );
 
 use POSIX ":sys_wait_h";      # signal and waitpid routines
@@ -93,10 +102,18 @@ use POSIX ":sys_wait_h";      # signal and waitpid routines
 $SNIPS_LOGHOST = "snips.your.domain" unless $SNIPS_LOGHOST;	# SET_THIS
 @permithosts = qw(127.0.0.1 localhost) unless @permithosts;
 push @permithosts, $SNIPS_LOGHOST;
-$debug = 0;                             # set to 1 for debugging output
+# $debug = 1;                             # set to 1 for debugging output
+
+# LINX hack for monitoring NTP peers we care about.
+# $NTPQ = '/usr/bin/ntpq' ; # Where's ntptrace program
+# @ntphosts = qw(ntp0.domain.net ntp1.domain.net ntp2.domain.net);
  
 $sleeptime = 5*60 ;
-@monitorlist = qw(uptime pstat nfsstat df iostat vmstat netstat mailstat);
+# @monitorlist = qw(uptime pstat nfsstat df iostat vmstat netstat mailstat ntppeerstat);
+@monitorlist = qw(uptime pstat nfsstat df iostat vmstat);
+
+# We can't monitor netstat because of a bug in RedHat's netstat -i -c.
+# Bug ref: 86330 <robl@linx.net>
 
 $SENDMAIL = "sendmail" ;	# SET_THIS to location of your 'sendmail'
 #$SENDMAIL = "qmail-qread";	# SET_THIS if using qmail
@@ -347,6 +364,64 @@ sub clean_out_onexit {
   if ($err) { die "($$) $err"; }
   else { die "($$) Terminating on signal\n"; }
 }	# clean_out_onexit()
+
+
+
+sub ntppeerstat {
+
+#
+# Uses ntptrace to list NTP peers that we care about and alarm about
+# NTP peer clock drift.
+#
+  my $cmd = "$NTPQ";
+  my $statuscode = undef;
+
+  open(CMD, "$cmd -p|")   || return (0); # dont exit if cmd not found
+
+  while (<CMD>) {
+
+  chomp;
+
+  $debug && print STDERR "(debug)ntppeerstat: $_" ;
+
+  next if $_ =~ /^\ .*/;
+  next if $_ =~ /^\=\=.*/;
+
+  my ($remote,$refid,$st,$t,$when,$poll,$reach,$delay,$offset,$jitter) = split(/\ +/);
+
+  my ($status) = substr($remote,0,1);
+  my ($server) = substr($remote,1);
+
+  $debug && print STDERR "(debug)ntppeerstat: parsed:$status:$server,$refid,$st,$t,$when,$poll,$reach,$delay,$offset,$jitter\n";
+
+    $offset =~ s/\-//;
+    $offset = int($offset);
+
+    foreach $peer (@ntphosts) {
+         if ($peer eq $server) {
+          #  set some status codes we can monitor with SNIPS and RRD etc:
+          # "Good" for differing values of "good":
+          $statuscode = "10" if ($status eq '*');   # (peer) good and used status = "*"
+          $statuscode = "9"  if ($status eq '+');   # (candidate) good but not tracked = "+"
+          $statuscode = "8"  if ($status eq ".");   # (excess)
+          $statuscode = "7"  if ($status eq "#");   # (selected) but not among the first six peers sorted by synchronization distance
+          $statuscode = "6"  if ($status eq '-');   # (outlyer) not so good = "-"
+
+          # alarm on these:
+          $statuscode = "2"  if ($status eq 'x');   # (falsetick) false ticker - something wrong = "x"!
+          $statuscode = "0"  if ($status eq ' ');   # (reject) peer discarded. unreachable or outrageous!
+
+          print "$server-Offset $offset msec NTPoffset\n";
+          print "$server-State $statuscode state NTPstate\n";
+
+          } #if
+
+   } #foreach $peer
+
+ } #while CMD
+ close (CMD);
+
+} # sub
 
 ##
 ##	mailstat

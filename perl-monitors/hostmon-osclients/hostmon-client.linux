@@ -12,6 +12,9 @@
 #   		VARIABLE VALUE UNITS COMMENT
 # For variables that are part of a varying maximum, normalize it and give
 # the percentage instead (e.g. free memory, etc.)
+#
+# <robl@linx.net> - defaults to "ext3" fs type as this is more likely than
+#                   ext2 these days.
 ###
 ###
 
@@ -89,14 +92,14 @@ sub nfsstat {
 # name (one for each disk). The hostmon server picks out the worst of
 # these lines.
 #
-# linux-vikas> df -k -t ext2
+# linux-vikas> df -k -t ext3
 # Filesystem         1024-blocks  Used Available Capacity Mounted on
 # /dev/hda5              19329   14135     4163     77%   /
 # /dev/hda2             198123  111709    76183     59%   /usr
 # /dev/hda7              19329     119    18179      1%   /spare
 # /dev/hda3              99061   85546     8400     91%   /usr/local
 #
-# linux-vikas> df -i -t ext2
+# linux-vikas> df -i -t ext3
 # Filesystem           Inodes   IUsed   IFree  %IUsed Mounted on
 # /dev/hda5              10320    1589    8731    15%  /
 # /dev/hda2              51200   12254   38946    24%  /usr
@@ -105,7 +108,7 @@ sub nfsstat {
 #
 sub df {
 
-  open(CMD, "df -k -t ext2 |");
+  open(CMD, "df -k -t ext3 |");
   while(<CMD>){
     chomp;
     if (/^\s*Filesystem/) { next; } #ignore header line
@@ -120,7 +123,7 @@ sub df {
     }       
   }
   close (CMD);
-  open (CMD, "df -i -t ext2 |");
+  open (CMD, "df -i -t ext3 |");
   while (<CMD>) {
     chomp;
     if (/^\s*Filesystem/)  { next; } # ignore header line
