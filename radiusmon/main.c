@@ -16,6 +16,9 @@
 
 /*
  * $Log$
+ * Revision 1.3  2008/06/26 17:03:46  tvroon
+ * GCC 3.4.1 reported these conflicting types.
+ *
  * Revision 1.2  2008/04/25 23:31:52  tvroon
  * Portability fixes by me, PROMPTA/B switch by Robert Lister <robl@linx.net>.
  *
@@ -261,7 +264,8 @@ void free_device_list(si_list)
 
 void set_functions()
 {
-  int help(), readconfig();
+  int readconfig();
+  void help();
   u_long dotest();
 
   set_help_function(help);

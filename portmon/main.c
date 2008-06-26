@@ -20,6 +20,9 @@
 
 /*
  * $Log$
+ * Revision 1.2  2008/06/26 17:03:46  tvroon
+ * GCC 3.4.1 reported these conflicting types.
+ *
  * Revision 1.1  2008/04/25 23:31:52  tvroon
  * Portability fixes by me, PROMPTA/B switch by Robert Lister <robl@linx.net>.
  *
@@ -476,7 +479,8 @@ void free_hostlist(phlist)
  */
 void set_functions()
 {
-  int help(), readconfig(), poll_devices();
+  int readconfig(), poll_devices();
+  void help();
 
   set_help_function(help);
   set_readconfig_function(readconfig);
