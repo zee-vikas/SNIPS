@@ -32,6 +32,7 @@
 #endif /* HAVE_CONFIG_H */
 
 #include <stdio.h>
+#include <string.h>
 #ifdef WIN32
 #include <winsock2.h>
 #else /* WIN32 */

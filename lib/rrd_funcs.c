@@ -25,6 +25,9 @@
 
 /*
  * $Log$
+ * Revision 1.2  2008/06/26 16:28:42  tvroon
+ * More use of string.h functions without including the required header.
+ *
  * Revision 1.1  2001/08/05 14:08:49  vikas
  * Now checks if the sitename or varname is blank.
  *
@@ -38,6 +41,7 @@
 #include "osdefs.h"
 #include <sys/types.h>
 #include <stdio.h>
+#include <string.h>
 #include <errno.h>
 #ifndef NeXT
 #  include <unistd.h>			/* for access(), lseek()  */

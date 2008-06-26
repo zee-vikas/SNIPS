@@ -37,6 +37,7 @@
 #include <sys/types.h>
 #include <fcntl.h>
 #include <stdio.h>
+#include <string.h>
 #include <assert.h>
 #include <ctype.h>
 #include <errno.h>

@@ -24,6 +24,7 @@ SOFTWARE.
 #endif /* HAVE_CONFIG_H */
 
 #include <stdio.h>
+#include <string.h>
 
 #ifdef HAVE_STDLIB_H
 #include <stdlib.h>

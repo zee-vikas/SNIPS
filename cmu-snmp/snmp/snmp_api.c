@@ -27,6 +27,7 @@
 #endif /* HAVE_CONFIG_H */
 
 #include <stdio.h>
+#include <string.h>
 #include <sys/types.h>
 #include <ctype.h>
 #include <errno.h>
