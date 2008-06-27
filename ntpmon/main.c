@@ -20,6 +20,9 @@
 
 /*
  * $Log$
+ * Revision 1.2  2008/06/27 12:16:45  tvroon
+ * Fix up code flow, declare struct before using it in function prototype.
+ *
  * Revision 1.1  2008/04/25 23:31:51  tvroon
  * Portability fixes by me, PROMPTA/B switch by Robert Lister <robl@linx.net>.
  *
@@ -42,10 +45,6 @@
 #include "event_utils.h"
 #undef _MAIN_
 
-/* function prototypes */
-void set_functions();
-void free_device_list(struct device_info **pslist);
-
 /* We keep a linked list of all the devices that we poll and store the
  * various thresholds in this linked list.
  */
@@ -54,6 +53,11 @@ static struct device_info
   u_long wlevel, elevel, clevel;
   struct device_info *next;
 } *device_info_list = NULL;	
+
+
+/* function prototypes */
+void set_functions();
+void free_device_list(struct device_info **pslist);
 
 int main(ac, av)
   int ac;
