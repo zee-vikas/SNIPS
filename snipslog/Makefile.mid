@@ -21,7 +21,7 @@ snipslogtest:  snipslogtest.o
 	$(CC) $(CFLAGS) -DTEST -o snipslogtest snipslogtest.c  $(LIBS)
 
 install:  installdir $(TARG)
-	$(INSTALL) -c -m 751 $(TARG)  $(BINDIR)/
+	$(INSTALL) -c -m 751 $(TARG) $(DESTDIR)$(BINDIR)/
 	@echo "___Update config file for logging daemon in $(ETCDIR) ___"
 
 clean:

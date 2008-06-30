@@ -62,32 +62,32 @@ snmpprogs:
 # ideally hostmon-osclients/ need not go into the BINDIR, but we are
 # putting it all there for now.
 install:
-	-@[ -d $(BINDIR)/hostmon-osclients ] || mkdir $(BINDIR)/hostmon-osclients
+	-@[ -d $(DESTDIR)$(BINDIR)/hostmon-osclients ] || mkdir $(DESTDIR)$(BINDIR)/hostmon-osclients
 	-@echo "Installing files in $(BINDIR)/hostmon-osclients" ;\
 	  for f in hostmon-osclients/* ; do \
 	   if [ -f $$f ]; then \
-	     $(INSTALL) -c -m 755 $$f $(BINDIR)/hostmon-osclients/ ;\
+	     $(INSTALL) -c -m 755 $$f $(DESTDIR)$(BINDIR)/hostmon-osclients/ ;\
 	   fi \
 	  done
-	-@cd $(BINDIR)/hostmon-osclients ; \
+	-@cd $(DESTDIR)$(BINDIR)/hostmon-osclients ; \
 	  if [ -f hostmon-client.seds ]; then \
 		$(INSTALL) -c -m 755 hostmon-client.seds  hostmon-client ;\
 		rm -f hostmon-client.seds ;\
 	  fi
 	-@echo "Installing perl monitors under $(BINDIR)" ;\
 	  for f in $(PROGS) ; do \
-	    $(INSTALL) -c -m 755 $$f.seds $(BINDIR)/$$f ;\
+	    $(INSTALL) -c -m 755 $$f.seds $(DESTDIR)$(BINDIR)/$$f ;\
 	  done
 	-@for f in $(CONF) ; do \
-	   if [ ! -f $(ETCDIR)/$$f ]; then \
-		$(INSTALL) -c -m 644 $$f.seds $(ETCDIR)/$$f ;\
+	   if [ ! -f $(DESTDIR)$(ETCDIR)/$$f ]; then \
+		$(INSTALL) -c -m 644 $$f.seds $(DESTDIR)$(ETCDIR)/$$f ;\
 	   fi \
 	 done
-	$(INSTALL) -c -m 755 $(CMUSNMP)/snmpapps/snmpwalk $(BINDIR)/
-	$(INSTALL) -c -m 755 $(CMUSNMP)/snmpapps/snmpget  $(BINDIR)/
-	$(INSTALL) -c -m 444 $(CMUSNMP)/mib-v2.txt $(ETCDIR)/
-	@if [ -f $(ETCDIR)/mibII.txt ]; then \
-		mv $(ETCDIR)/mibII.txt $(ETCDIR)/mibII.txt.old ;\
+	$(INSTALL) -c -m 755 $(CMUSNMP)/snmpapps/snmpwalk $(DESTDIR)$(BINDIR)/
+	$(INSTALL) -c -m 755 $(CMUSNMP)/snmpapps/snmpget  $(DESTDIR)$(BINDIR)/
+	$(INSTALL) -c -m 444 $(CMUSNMP)/mib-v2.txt $(DESTDIR)$(ETCDIR)/
+	@if [ -f $(DESTDIR)$(ETCDIR)/mibII.txt ]; then \
+		mv $(DESTDIR)$(ETCDIR)/mibII.txt $(DESTDIR)$(ETCDIR)/mibII.txt.old ;\
 	 fi 
 	@echo  "See $(SRCDIR)/perl-monotors/README for further customizations"
 

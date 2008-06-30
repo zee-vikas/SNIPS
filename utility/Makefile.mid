@@ -59,12 +59,12 @@ sed:
 	echo ""
 
 install: all
-	$(INSTALL) -c  -m 751 $(CPROGS) $(BINDIR)/
+	$(INSTALL) -c  -m 751 $(CPROGS) $(DESTDIR)$(BINDIR)/
 	-@ for f in $(SCRIPTS) ; do \
-	   if [ -f $(BINDIR)/$$f ]; then \
+	   if [ -f $(DESTDIR)$(BINDIR)/$$f ]; then \
 	   	echo "Not overwriting existing $(BINDIR)/$$f" ;\
 	   else \
-	   	$(INSTALL) -c -m 751 $$f.seds $(BINDIR)/$$f ;\
+	   	$(INSTALL) -c -m 751 $$f.seds $(DESTDIR)$(BINDIR)/$$f ;\
 	   fi ;\
 	done
 

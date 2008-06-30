@@ -14,10 +14,10 @@ $(TARG):	$(OBJS) Makefile
 	$(CC) $(CFLAGS) $(OBJS) $(PROGLIBS) -o $(TARG)
 
 install:  installdir  $(TARG)
-	$(INSTALL) -c -m 4711 $(TARG) $(BINDIR)/
+	$(INSTALL) -c -m 4711 $(TARG) $(DESTDIR)$(BINDIR)/
 	@if [ `whoami` = "root" ]; then \
-		chown root $(BINDIR)/$(TARG) ;\
-		ls -lg $(BINDIR)/$(TARG) ;\
+		chown root $(DESTDIR)$(BINDIR)/$(TARG) ;\
+		ls -lg $(DESTDIR)$(BINDIR)/$(TARG) ;\
 	 else \
 		echo "";echo "___Installed $(TARG) needs to be root suid___" ;\
 		echo "Do as root manually" ;\

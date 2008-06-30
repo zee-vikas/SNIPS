@@ -26,18 +26,18 @@ all:
 
 install:  installdir
 	@echo "Installing in 'man'"
-	@- [ -d $(MANDIR) ] || mkdir $(MANDIR)
+	@- [ -d $(DESTDIR)$(MANDIR) ] || mkdir $(DESTDIR)$(MANDIR)
 #	@-for d in $(MANDIR)/man1 $(MANDIR)/man3 $(MANDIR)/man8; do \
 #		[! -d $$d ]  && mkdir $$d ;\
 #	 done
 	@- for m in $(MANPAGES1); do \
-	 	$(INSTALL) -c -m 644 $$m.sed $(MANDIR)/`basename $$m 1`$(MANEXT) ;\
+	 	$(INSTALL) -c -m 644 $$m.sed $(DESTDIR)$(MANDIR)/`basename $$m 1`$(MANEXT) ;\
 	 done
 	@- for m in $(MANPAGES3); do \
-	 	$(INSTALL) -c -m 644 $$m.sed $(MANDIR)/`basename $$m 3`$(MANEXT) ;\
+	 	$(INSTALL) -c -m 644 $$m.sed $(DESTDIR)$(MANDIR)/`basename $$m 3`$(MANEXT) ;\
 	 done
 	@- for m in $(MANPAGES8); do \
-	 	$(INSTALL) -c -m 644 $$m.sed $(MANDIR)/`basename $$m 8`$(MANEXT) ;\
+	 	$(INSTALL) -c -m 644 $$m.sed $(DESTDIR)$(MANDIR)/`basename $$m 8`$(MANEXT) ;\
 	 done
 
 clean:

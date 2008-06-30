@@ -17,7 +17,7 @@ $(TARG): $(OBJS) Makefile
 
 
 install: installdir $(TARG)
-	$(INSTALL) -c -m 751 $(TARG) $(BINDIR)/
+	$(INSTALL) -c -m 751 $(TARG) $(DESTDIR)$(BINDIR)/
 
 test:	radiusmon.c md5.c
 	$(CC) -c $(CFLAGS) -DDEBUG -DTEST radiusmon.c

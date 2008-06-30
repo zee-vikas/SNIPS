@@ -20,7 +20,7 @@ test tptest:	tptest.o tpmon.o tptest.h
 	$(CC) $(CFLAGS) -o tptest tpmon.o tptest.o
 
 install: installdir $(TARG)
-	$(INSTALL) -c -m 751 $(TARG) $(BINDIR)/
+	$(INSTALL) -c -m 751 $(TARG) $(DESTDIR)$(BINDIR)/
 
 clean:
 	rm -f $(DIRT) tptest

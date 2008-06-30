@@ -32,24 +32,24 @@ all:
 
 install:	installdir
 	@for f in $(CGI) ; do \
-		$(INSTALL) -c -m 755 $$f.seds $(CGIDIR)/$$f ; \
+		$(INSTALL) -c -m 755 $$f.seds $(DESTDIR)$(CGIDIR)/$$f ; \
 	done
 	@for f in $(CONFIG) ; do \
-	 if [ -f $(ETCDIR)/$$f ]; then \
+	 if [ -f $(DESTDIR)$(ETCDIR)/$$f ]; then \
 		echo "Not overwriting existing $(ETCDIR)/$$f" ;\
 	 else \
-		$(INSTALL) -c -m 755 $$f.seds $(ETCDIR)/$$f ; \
+		$(INSTALL) -c -m 755 $$f.seds $(DESTDIR)$(ETCDIR)/$$f ; \
 	 fi ;\
 	done
-	@[ -f $(DEVICEHELPDIR)/default ] || $(INSTALL) -c -m 644 default $(DEVICEHELPDIR)/
+	@[ -f $(DESTDIR)$(DEVICEHELPDIR)/default ] || $(INSTALL) -c -m 644 default $(DESTDIR)$(DEVICEHELPDIR)/
 	@for f in $(HTMLFILES) ; do \
-	 if [ -f $(HTMLDIR)/$$f ]; then \
+	 if [ -f $(DESTDIR)$(HTMLDIR)/$$f ]; then \
 		echo "Not overwriting existing $(HTMLDIR)/$$f" ;\
 	 else \
-		$(INSTALL) -c -m 644 $$f $(HTMLDIR)/$$f ; \
+		$(INSTALL) -c -m 644 $$f $(DESTDIR)$(HTMLDIR)/$$f ; \
 	 fi ;\
 	done ;\
-	cp -r gifs $(HTMLDIR)/gifs
+	cp -r gifs $(DESTDIR)$(HTMLDIR)/gifs
 	@echo  "Installed basic web files under " ; \
 	 echo  "   $(HTMLDIR) and $(CGIDIR)" ; \
 	 echo  "Move into desired web location."; \

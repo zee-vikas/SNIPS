@@ -66,8 +66,8 @@ Init:
 
 ## Ultrix make balked at the tests for directories, hence the second test
 install:	installdir  lib
-	@[ -d $(ROOTDIR) ] && [ -d $(DATADIR) ] && [ -d $(ETCDIR) ] \
-		&& [ -d $(BINDIR) ]
+	@[ -d $(DESTDIR)$(ROOTDIR) ] && [ -d $(DESTDIR)$(DATADIR) ] && \
+		[ -d $(DESTDIR)$(ETCDIR) ] && [ -d $(DESTDIR)$(BINDIR) ]
 	@-(touch SniPpet ; $(INSTALL) -c -m 750 SniPpet /tmp/;) >/dev/null 2>&1 ;
 	@(if [ -f /tmp/SniPpet ]; then rm -f SniPpet /tmp/SniPpet; else \
 	  echo "YOU HAVE AN INCOMPATIBLE install, use 'myinstall' instead" ;\
@@ -82,10 +82,10 @@ install:	installdir  lib
 	@echo ""
 	@echo "Installing sample config files under $(EXAMPLESDIR)/..."
 	@-for i in */*-confg */*.conf *.conf ; do \
-		$(INSTALL) -m 444 -c  $$i $(EXAMPLESDIR)/ ;\
+		$(INSTALL) -m 444 -c  $$i $(DESTDIR)$(EXAMPLESDIR)/ ;\
 	done
 	@if [ ! -f $(ETCDIR)/snips.conf ]; then \
-		$(INSTALL) -c -m 755 snips.conf $(ETCDIR)/snips.conf ;\
+		$(INSTALL) -c -m 755 snips.conf $(DESTDIR)$(ETCDIR)/snips.conf ;\
 	 fi
 	@echo "" ; echo "           NOW su AND DO A make root "
 
@@ -95,9 +95,9 @@ root:
 	@if [ "`$(WHOAMI)`" = "root" ]; then \
 		echo "Installing the following programs SUID under $(BINDIR)";\
 		echo "  multiping  etherload  trapmon" ;\
-		$(INSTALL) -m 4711 -c pingmon/multiping/multiping $(BINDIR) ;\
-		$(INSTALL) -m 4710 -c etherload/etherload $(BINDIR) ;\
-		$(INSTALL) -m 4710 -c trapmon/trapmon $(BINDIR) ;\
+		$(INSTALL) -m 4711 -c pingmon/multiping/multiping $(DESTDIR)$(BINDIR) ;\
+		$(INSTALL) -m 4710 -c etherload/etherload $(DESTDIR)$(BINDIR) ;\
+		$(INSTALL) -m 4710 -c trapmon/trapmon $(DESTDIR)$(BINDIR) ;\
 	 else \
 		echo "PLEASE RUN  make root  AS root (currently `whoami`)" ;\
 	 fi

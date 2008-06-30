@@ -17,7 +17,7 @@ $(TARG): $(OBJS) Makefile
 	$(CC) $(CFLAGS) $(OBJS) $(LIBS) $(PROGLIBS) -o $@
 
 install: installdir $(TARG)
-	$(INSTALL) -c -m 751 $(TARG) $(BINDIR)/
+	$(INSTALL) -c -m 751 $(TARG) $(DESTDIR)$(BINDIR)/
 
 ## for standalone, need to link with -lresolv or -lbind
 nstest: nsmon.c

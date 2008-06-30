@@ -9,32 +9,32 @@
 
 ## these dirs are listed in Makefile.head
 installdir:
-	@[ -d $(ROOTDIR) ] || mkdir  $(ROOTDIR)
-	@[ -d $(BINDIR) ] ||  mkdir $(BINDIR)
-	@[ -d $(DATADIR) ] || mkdir $(DATADIR)
-	@[ -d $(ETCDIR) ] ||  mkdir $(ETCDIR)
-	@[ -d $(PIDDIR) ] ||  mkdir $(PIDDIR)
-	@[ -d $(INITDIR) ] || mkdir $(INITDIR)
-	@[ -d $(MSGSDIR) ] || mkdir $(MSGSDIR)
-	@[ -d $(RRD_DBDIR) ] || mkdir $(RRD_DBDIR)
-	@[ -d $(EXAMPLESDIR) ] || mkdir $(EXAMPLESDIR)
-	@[ -d $(DEVICEHELPDIR) ] || mkdir $(DEVICEHELPDIR)
-	@[ -d $(CGIDIR) ] || mkdir -p $(CGIDIR)
-	@[ -d $(HTMLDIR) ] || mkdir -p $(HTMLDIR)
-	@[ -d $(ROOTDIR)/logs ] || mkdir $(ROOTDIR)/logs
+	@[ -d $(DESTDIR)$(ROOTDIR) ] || mkdir -p $(DESTDIR)$(ROOTDIR)
+	@[ -d $(DESTDIR)$(BINDIR) ] ||  mkdir -p $(DESTDIR)$(BINDIR)
+	@[ -d $(DESTDIR)$(DATADIR) ] || mkdir -p $(DESTDIR)$(DATADIR)
+	@[ -d $(DESTDIR)$(ETCDIR) ] ||  mkdir -p $(DESTDIR)$(ETCDIR)
+	@[ -d $(DESTDIR)$(PIDDIR) ] ||  mkdir -p $(DESTDIR)$(PIDDIR)
+	@[ -d $(DESTDIR)$(INITDIR) ] || mkdir -p $(DESTDIR)$(INITDIR)
+	@[ -d $(DESTDIR)$(MSGSDIR) ] || mkdir -p $(DESTDIR)$(MSGSDIR)
+	@[ -d $(DESTDIR)$(RRD_DBDIR) ] || mkdir -p $(DESTDIR)$(RRD_DBDIR)
+	@[ -d $(DESTDIR)$(EXAMPLESDIR) ] || mkdir -p $(DESTDIR)$(EXAMPLESDIR)
+	@[ -d $(DESTDIR)$(DEVICEHELPDIR) ] || mkdir -p $(DESTDIR)$(DEVICEHELPDIR)
+	@[ -d $(DESTDIR)$(CGIDIR) ] || mkdir -p $(DESTDIR)$(CGIDIR)
+	@[ -d $(DESTDIR)$(HTMLDIR) ] || mkdir -p $(DESTDIR)$(HTMLDIR)
+	@[ -d $(DESTDIR)$(ROOTDIR)/logs ] || mkdir -p $(DESTDIR)$(ROOTDIR)/logs
 
 init:
-	@if [ ! -z "$(INITFILES)" ] && [ -d "$(INITDIR)" ]; then \
+	@if [ ! -z "$(INITFILES)" ] && [ -d "$(DESTDIR)$(INITDIR)" ]; then \
 	 for i in $(INITFILES) x ; \
 	  do \
 	   if [ "$$i" = "x" ]; then \
 		: ;\
 	   else \
-		if [ -f "$(INITDIR)/$$i.init" ]; then \
+		if [ -f "$(DESTDIR)$(INITDIR)/$$i.init" ]; then \
 			echo "Not overwriting existing $(INITDIR)/$$i.init";\
 		else \
 			echo "Installing $$i.init under $(INITDIR)/" ;\
-			ln -s $(BINDIR)/snipsprog.init $(INITDIR)/$$i.init ;\
+			ln -s $(DESTDIR)$(BINDIR)/snipsprog.init $(DESTDIR)$(INITDIR)/$$i.init ;\
 		fi \
 	   fi \
 	 done \

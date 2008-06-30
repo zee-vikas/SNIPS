@@ -16,7 +16,7 @@ $(TARG):	$(OBJS) Makefile
 	$(CC) $(CFLAGS) $(OBJS) $(PROGLIBS) -o $(TARG)
 
 install:  installdir  $(TARG)
-	$(INSTALL) -c -m 751 $(TARG) $(BINDIR)/
+	$(INSTALL) -c -m 751 $(TARG) $(DESTDIR)$(BINDIR)/
 
 clean:
 	rm -f $(DIRT) $(TARG)

@@ -26,11 +26,11 @@ $(TARG): $(OBJS) Makefile
 	$(CC) $(CFLAGS) $(OBJS) $(LIBS) $(PROGLIBS) -o $@
 
 install: installdir $(TARG)
-	$(INSTALL) -c -m 751 $(TARG) $(BINDIR)/ ;
-	@[ -f $(BINDIR)/ippingmon ] && rm -f $(BINDIR)/ippingmon ; \
-	 ln -s $(BINDIR)/$(TARG) $(BINDIR)/ippingmon ;\
-	 [ -f $(BINDIR)/rpcpingmon ] && rm -f $(BINDIR)/rpcpingmon ; \
-	 ln -s $(BINDIR)/$(TARG) $(BINDIR)/rpcpingmon
+	$(INSTALL) -c -m 751 $(TARG) $(DESTDIR)$(BINDIR)/ ;
+	@[ -f $(DESTDIR)$(BINDIR)/ippingmon ] && rm -f $(DESTDIR)$(BINDIR)/ippingmon ; \
+	 ln -s $(DESTDIR)$(BINDIR)/$(TARG) $(DESTDIR)$(BINDIR)/ippingmon ;\
+	 [ -f $(DESTDIR)$(BINDIR)/rpcpingmon ] && rm -f $(DESTDIR)$(BINDIR)/rpcpingmon ; \
+	 ln -s $(DESTDIR)$(BINDIR)/$(TARG) $(DESTDIR)$(BINDIR)/rpcpingmon
 
 clean:
 	rm -f $(DIRT)

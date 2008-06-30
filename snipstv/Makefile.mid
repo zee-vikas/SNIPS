@@ -20,9 +20,9 @@ $(TARG):	$(OBJS) Makefile
 	$(CC) $(CFLAGS) $(OBJS) $(LIBS) $(PROGLIBS) -o $@
 
 install:   installdir  $(TARG)
-	$(INSTALL) -c -m 751 $(TARG) $(BINDIR)
-	[ -r $(BINDIR)/netconsole ] || ln -s $(BINDIR)/$(TARG) $(BINDIR)/netconsole
-	$(INSTALL) -c -m 0444 snipstv-help $(ETCDIR)
+	$(INSTALL) -c -m 751 $(TARG) $(DESTDIR)$(BINDIR)
+	[ -r $(DESTDIR)$(BINDIR)/netconsole ] || ln -s $(DESTDIR)$(BINDIR)/$(TARG) $(DESTDIR)$(BINDIR)/netconsole
+	$(INSTALL) -c -m 0444 snipstv-help $(DESTDIR)$(ETCDIR)
 
 clean:
 	rm -f $(DIRT) filter
