@@ -17,7 +17,7 @@ OBJS  = trapmon.o snips_specific.o
 INITFILES = trapmon
 
 $(TARG):	$(OBJS) Makefile
-	$(CC) $(CFLAGS) $(OBJS) $(LIBS) $(PROGLIBS) -o $@
+	$(CC) $(CFLAGS) $(OBJS) $(PROGLIBS) $(LIBS) -o $@
 
 install: $(TARG)
 	$(INSTALL) -c -m 4750 $(TARG) $(DESTDIR)$(BINDIR)/
