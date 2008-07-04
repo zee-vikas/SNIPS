@@ -17,7 +17,7 @@ CMUSNMP =	$(SRCDIR)/cmu-snmp
 PROGS = apcmon armon bgpmon bpmon ciscomon modemmon novellmon nrmon \
 	hostmon hostmon-collector hostmon-osclients/hostmon-client \
 	smbmon sqlmon snmpmon snmpmon-collector snmpgeneric \
-	syslogmon upsmon rcisco testlog
+	syslogmon upsmon rcisco testlog snmpgeneric2
 
 # to create init files to start/stop programs
 INITFILES = apcmon armon bgpmon bpmon ciscomon modemmon novellmon nrmon \
@@ -89,7 +89,7 @@ install:
 	@if [ -f $(DESTDIR)$(ETCDIR)/mibII.txt ]; then \
 		mv $(DESTDIR)$(ETCDIR)/mibII.txt $(DESTDIR)$(ETCDIR)/mibII.txt.old ;\
 	 fi 
-	@echo  "See $(SRCDIR)/perl-monotors/README for further customizations"
+	@echo  "See $(SRCDIR)/perl-monitors/README for further customizations"
 
 clean:
 	@-cd $(CMUSNMP)/snmpapps; make realclean

@@ -6,7 +6,7 @@
 
 SHSCRIPTS = crontab.snips snipsprog.init
 PERLSCRIPTS = keepalive_monitors.pl logstats.pl logmaint.pl \
-		docrypt.pl notifier.pl
+		docrypt.pl notifier.pl snmpconf.pl
 SCRIPTS = $(SHSCRIPTS) $(PERLSCRIPTS)
 
 CPROGS = display_snips_datafile  eventselect
