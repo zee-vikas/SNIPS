@@ -20,6 +20,9 @@
 
 /*
  * $Log$
+ * Revision 1.3  2009/02/26 00:36:07  tvroon
+ * Replace build system with an autoconf/buildsys driven one, by external contractor Diego E. 'Flameeyes' Pettenò <flameeyes@gmail.com>.
+ *
  * Revision 1.2  2008/06/27 12:16:45  tvroon
  * Fix up code flow, declare struct before using it in function prototype.
  *
@@ -267,13 +270,14 @@ int poll_devices()
 
 }	/* end of:  poll_devices		*/
 
-void help()
+int help()
 {
   snips_help();
   fprintf(stderr, "\
   This program checks the NTP stratum of the hosts being monitored and\n\
   escalates the severity of the device if the NTP stratum drops (gets\n\
   worse) below the configured levels.\n\n");
+  return 0;
 }
 
 void free_device_list(pslist)

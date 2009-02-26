@@ -1,0 +1,9 @@
+/snmp/.libs
+/snmp/Makefile
+/snmp/*.lo
+/snmp/*.a
+/snmp/*.la
+/snmp/config.h
+/snmp/config.log
+/snmp/config.status
+/snmp/libtool

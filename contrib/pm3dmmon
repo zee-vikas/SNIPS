@@ -1,4 +1,4 @@
-#!/usr/local/bin/perl 
+#!/usr/bin/env perl 
 ##
 #
 #  pm3dmmon - perl monitor for digital modem usage on PM3 Terminal Servers

@@ -1,4 +1,4 @@
-#!/usr/local/bin/perl 
+#!/usr/bin/env perl 
 ##
 #
 #  pm3t1e1mon - perl monitor for t1/e1 line status on pm3 terminal servers

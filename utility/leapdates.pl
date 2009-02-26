@@ -1,4 +1,4 @@
-#!/usr/local/bin/perl
+#!/usr/bin/env perl
 
 sub cvt_time {
   local ($timestr) = @_;	# Mon Aug 31 16:01:32 EDT 1998

@@ -1,4 +1,4 @@
-#!/usr/local/bin/perl
+#!/usr/bin/env perl
 #
 # Given a password, encrypt it so that we can enter the string in a
 # password style file. use to maintain 'webusers'

@@ -29,6 +29,9 @@
 
 /*
  * $Log$
+ * Revision 1.1  2009/02/26 00:36:07  tvroon
+ * Replace build system with an autoconf/buildsys driven one, by external contractor Diego E. 'Flameeyes' Pettenò <flameeyes@gmail.com>.
+ *
  * Revision 1.0  2001/07/12 04:45:40  vikas
  * Initial revision
  *
@@ -111,7 +114,7 @@
 #endif
 
 
-#if defined(LINUX) || defined(LINUX1) || defined(LINUX2)
+#ifdef __linux__
 # define USE_LINUX
 # include <endian.h>
 #endif

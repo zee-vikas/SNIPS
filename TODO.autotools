@@ -1,0 +1,4 @@
+ - the crontab.snips and snipsprogs.init need proper replacement for
+   ROOTDIR;
+ - perl and tcltk extensions need to be tested;
+ - support for non-Linux is yet to be added;

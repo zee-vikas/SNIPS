@@ -1,0 +1,49 @@
+DATADIR = $(localstatedir)/lib/$(PACKAGE)
+PIDDIR = $(localstatedir)/run
+ETCDIR = $(sysconfdir)/etc/$(PACKAGE)
+
+PSFLAGS = @PSFLAGS@
+MAIL = @MAIL@
+SENDPAGE = @SENDPAGE@
+HOSTNAME = @HOSTNAME@
+OPSMAIL = @OPSMAIL@
+ADMINMAIL = @ADMINMAIL@
+
+CURSES_LIBS=@CURSES_LIBS@
+SNIPS_LIB = @SNIPS_LIB@
+
+$(SNIPS_LIB):
+	$(MAKE) -C $(dir $(SNIPS_LIB)) $(notdir $(SNIPS_LIB))
+
+$(PROG) $(PROG_NOINST): $(SNIPS_LIB)
+
+# The use of -include is gcc-specific and should be removed once all
+# the source files include <config.h> by themselves.
+CPPFLAGS += \
+	-include \$(top_srcdir)/include/config.h \
+	-I$(top_srcdir)/include \
+	-DDATADIR='"$(DATADIR)"' \
+	-DPIDDIR='"$(PIDDIR)"' \
+	-DETCDIR='"$(ETCDIR)"' \
+	-DSNIPS
+
+LIBS += $(SNIPS_LIB)
+
+# Make sure that bindir, libexecdir and company are at the end of the
+# macro since we want them to act last.
+sed_subst = sed \
+	-e "s|@""BINDIR@|$(bindir)|g" \
+	-e "s|@""PIDDIR@|$(PIDDIR)|g" \
+	-e "s|@""ETCDIR@|$(ETCDIR)|g" \
+	-e "s|@""DATADIR@|$(DATADIR)|g" \
+	-e "s|@""OPSMAIL@|$(OPSMAIL)|g" \
+	-e "s|@""ADMINMAIL@|$(ADMINMAIL)|g" \
+	-e "s|@""PACKAGE@|$(PACKAGE)|g" \
+	-e "s|@""SENDPAGE@|$(SENDPAGE)|g" \
+	-e "s|@""MAIL@|$(MAIL)|g" \
+	-e "s|@""PSFLAGS@|$(PSFLAGS)|g" \
+	-e "s|@""HOSTNAME@|$(HOSTNAME)|g" \
+	-e "s|@""libexecdir@|$(libexecdir)|g" \
+	-e "s|@""bindir@|$(bindir)|g" \
+	-e "s|@""exec_prefix@|$(exec_prefix)|g" \
+	-e "s|@""prefix@|$(prefix)|g"
