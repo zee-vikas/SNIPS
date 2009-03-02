@@ -1,3 +1,5 @@
+SUBDIRS = eventselect display_snips_datafile
+
 EXTRA =	crontab.snips \
 	snipsprog.init
 
@@ -7,7 +9,7 @@ BUILT_SCRIPTS = \
 	notifier.pl \
 	snmpconf.pl
 
-SCRIPTS = $(BUILT_SCRIPTS) \
+LIBEXEC_SCRIPTS = $(BUILT_SCRIPTS) \
 	docrypt.pl \
 	leapdates.pl \
 	logstats.pl
@@ -19,7 +21,7 @@ all: $(CLEAN)
 include ../buildsys.mk
 include ../misc.defs.mk
 
-$(SCRIPTS): %: %.in ../misc.defs.mk
+$(LIBEXEC_SCRIPTS): %: %.in ../misc.defs.mk
 	$(GENERATE_STATUS)
 	if $(sed_subst) \
 		$< > $@; then \
@@ -42,9 +44,9 @@ $(EXTRA): %: %.in ../misc.defs.mk
 		$(GENERATE_FAILED); \
 	fi
 
-install:
+install-extra:
 	$(INSTALL) -d $(DESTDIR)$(libexecdir)/$(PACKAGE)
-	for script in $(SCRIPTS); do \
+	for script in $(LIBEXEC_SCRIPTS); do \
 		install -m 0755 $$script $(DESTDIR)$(libexecdir)/$(PACKAGE)/$$script; \
 	done
 

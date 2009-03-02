@@ -39,7 +39,7 @@ $(EXTRA): %: %.in ../misc.defs.mk
 		$(GENERATE_FAILED); \
 	fi
 
-install:
+install-extra:
 	$(INSTALL) -d $(DESTDIR)$(libexecdir)/$(PACKAGE)
 	for cgi in $(CGI); do \
 		install -m 0755 $$cgi $(DESTDIR)$(libexecdir)/$(PACKAGE)/$$cgi; \

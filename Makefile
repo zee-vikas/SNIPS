@@ -1,6 +1,5 @@
 SUBDIRS = include lib etherload nsmon ntpmon pingmon portmon radiusmon \
-	snipslog snipstv tpmon trapmon tksnips snipsweb man utility \
-	utility/eventselect utility/display_snips_datafile
+	snipslog snipstv tpmon trapmon tksnips snipsweb man utility
 
 include buildsys.mk
 include misc.defs.mk
